@@ -1,0 +1,41 @@
+#!/usr/bin/env perl
+
+use 5.010;
+use warnings;
+use strict;
+
+use File::Find;
+use File::Copy;
+
+print "path where to install scripts:";
+
+my $dir = $ARGV[0] || <>; chomp $dir;
+$dir =~ s/^~/$ENV{HOME}/;
+
+say "installed in $dir: ";
+
+find( sub{ 
+        exit if /\.git/;
+        unless(/(^\.|\.git|README|setup)/){ 
+            copy("$File::Find::dir/$_", $dir);
+            chmod 0755, "$dir/$_";
+            say "$_ " if -f "$dir/$_";
+        }
+    }, '.' 
+);
+
+=head1
+
+NAME
+
+setup - ask for path and installs scripts in curent dir into path
+
+USAGE
+
+C<setup>
+
+or
+
+C<setup /PATH/TO/DIR>
+
+=cut

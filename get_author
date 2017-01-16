@@ -1,0 +1,41 @@
+#!/usr/bin/env perl
+use 5.010;
+use warnings;
+use strict;
+
+my $author = sub {
+    my $name = shift; 
+    my %g = (
+        url => 'https://www.google.com/search?q=metacpan+',
+        name => join('+', @$name),
+        agent => 'Mozilla/5.0',
+    );
+    $g{curl} = qq|curl --user-agent "$g{agent}" -skL '$g{url}$g{name}'|;
+    return \%g;
+};
+
+my $get = $author->(\@ARGV);
+
+open my $p,'-|',"$get->{curl}";
+while( <$p> ){
+    if( /\(([A-Z]*?)\) \- <b>metacpan<\/b>\.org/ ){ $get->{author} = $1 }
+}
+
+say $get->{author};
+
+=head1
+
+NAME
+
+get_author - use metacpan author name surname to find AUTHOR nickname
+
+USAGE
+
+get_author brian d foy
+
+DEPENDENCIES
+
+curl
+
+=cut
+

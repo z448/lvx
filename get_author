@@ -27,7 +27,7 @@ say $get->{author};
 
 NAME
 
-get_author - use metacpan author name surname to find AUTHOR nickname
+get_author - use author name to find metacpan AUTHOR nickname
 
 USAGE
 

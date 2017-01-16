@@ -1,51 +1,68 @@
 #!/usr/bin/env perl
+
 use 5.010;
 use warnings;
 use strict;
 
-use utf8;
 use Data::Dumper;
+use HTTP::Tiny;
 
-my $author = sub {
-    my $name = shift; 
+my $get = sub {
+    my $name = shift;
     my %g = (
         url => 'https://metacpan.org/pod/',
         name => $name,
         agent => 'Mozilla/5.0',
     );
-    $g{curl} = qq|curl --user-agent "$g{agent}" -skL '$g{url}$g{name}'|;
-    return \%g;
+
+    my $res;
+    if( HTTP::Tiny->can_ssl ){
+        return sub{ $res = HTTP::Tiny->new->get("$g{url}$g{name}"); return $res->{content} };
+    } else {
+        return sub{
+            open my $p,'-|',"curl --user-agent \"$g{agent}\" -skL '$g{url}$g{name}'";
+            while( <$p> ){ $res .= $_ }
+            return $res;
+        };
+    }
 };
 
-my $get = $author->($ARGV[0]);
 
-my $field = 0;
-my @m = ();
-open my $p,'-|',"$get->{curl}";
-while( <$p> ){
-    if(/Jump to version/){ $field = 1 }
-    if( /(value|label)\=\"(.*?)">(.*?)\ / ){ 
-            my %m = ();
-            $m{path} = $2 and $m{version} = $3 unless $field == 0;
-            push @m,{ %m };
+my $version_path = sub {
+    my $module = shift;
+    my $res = $get->($module);
+    my $field = 0;
+    my @m = ();
+
+    open(my $fh,'<',\$res->());
+    while( <$fh> ){
+        if(/Jump to version/){ $field = 1 }
+        if( /(value|label)\=\"(.*?)">(.*?)\ / ){
+                my %m = ();
+                $m{path} = $2 and $m{version} = $3 unless $field == 0;
+                push @m,{ %m };
         }
-}
+    }
+    return \@m;
+};
 
-say Dumper @m;
+my $array = $version_path->("$ARGV[0]");
+my @m = grep{ $_->{version} eq  $ARGV[1]} @$array;
+say $_->{path} for @m;
 
 =head1
 
 NAME
 
-get_author - use author name to find metacpan AUTHOR nickname
+version_path - prints array of hashes author=>path/to/version/module
 
 USAGE
 
-get_author brian d foy
+version_path Module::Name
 
 DEPENDENCIES
 
-curl
+libssl
 
 =cut
 

@@ -13,14 +13,14 @@ my( $json ) = ();
 my $d = decode_json $json;
 
 open(my $fh,">", "$ENV{HOME}/packlist") || die "cant open ~/packlist: $!";
-print $fh $d->[0];
+print $fh $d->[1];
 close $fh;
 
 system("rm -rf $ENV{HOME}/Documents/build && mkdir -p $ENV{HOME}/Documents/build && tar pcz -T $ENV{HOME}/packlist -f $ENV{HOME}/Documents/build/data.tar.gz && cd $ENV{HOME}/Documents/build && mv data.tar.gz .. && rm -rf * && mv ../data.tar.gz . && cd -");
 system("mkdir -p $ENV{HOME}/Documents/build/sh.load.perl5.24.0-iphoneos-arm/DEBIAN");
 
 open($fh,">", "$ENV{HOME}/Documents/build/sh.load.perl5.24.0-iphoneos-arm/DEBIAN/control") || die "cant open control file: $!";
-print $fh $d->[1];
+print $fh $d->[0];
 close $fh;
 
 

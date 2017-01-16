@@ -1,0 +1,51 @@
+#!/usr/bin/env perl
+use 5.010;
+use warnings;
+use strict;
+
+use utf8;
+use Data::Dumper;
+
+my $author = sub {
+    my $name = shift; 
+    my %g = (
+        url => 'https://metacpan.org/pod/',
+        name => $name,
+        agent => 'Mozilla/5.0',
+    );
+    $g{curl} = qq|curl --user-agent "$g{agent}" -skL '$g{url}$g{name}'|;
+    return \%g;
+};
+
+my $get = $author->($ARGV[0]);
+
+my $field = 0;
+my @m = ();
+open my $p,'-|',"$get->{curl}";
+while( <$p> ){
+    if(/Jump to version/){ $field = 1 }
+    if( /(value|label)\=\"(.*?)">(.*?)\ / ){ 
+            my %m = ();
+            $m{path} = $2 and $m{version} = $3 unless $field == 0;
+            push @m,{ %m };
+        }
+}
+
+say Dumper @m;
+
+=head1
+
+NAME
+
+get_author - use author name to find metacpan AUTHOR nickname
+
+USAGE
+
+get_author brian d foy
+
+DEPENDENCIES
+
+curl
+
+=cut
+

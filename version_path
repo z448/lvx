@@ -16,15 +16,12 @@ my $get = sub {
     );
 
     my $res;
-    if( HTTP::Tiny->can_ssl ){
-        return sub{ $res = HTTP::Tiny->new->get("$g{url}$g{name}"); return $res->{content} };
-    } else {
-        return sub{
-            open my $p,'-|',"curl --user-agent \"$g{agent}\" -skL '$g{url}$g{name}'";
-            while( <$p> ){ $res .= $_ }
-            return $res;
-        };
-    }
+    #return sub{ $res = HTTP::Tiny->new->get("$g{url}$g{name}"); return $res->{content} } if HTTP::Tiny->can_ssl;
+    return sub{
+        open my $p,'-|',"curl --user-agent \"$g{agent}\" -skL '$g{url}$g{name}'";
+        while( <$p> ){ $res .= $_ }
+        return $res;
+    };
 };
 
 
@@ -32,23 +29,21 @@ my $version_path = sub {
     my $module = shift;
     my $res = $get->($module);
     my $field = 0;
-    my @m = ();
+    my %version = ();
 
     open(my $fh,'<',\$res->());
     while( <$fh> ){
         if(/Jump to version/){ $field = 1 }
-        if( /(value|label)\=\"(.*?)">(.*?)\ / ){
-                my %m = ();
-                $m{path} = $2 and $m{version} = $3 unless $field == 0;
-                push @m,{ %m };
+        if( /(value|label)\=\"(.*?)\/(.*?)\/.*">(.*?)\ / ){
+                $version{"$4"} = "$2/$3" unless $field == 0;
         }
     }
-    return \@m;
+    return \%version;
 };
 
-my $array = $version_path->("$ARGV[0]");
-my @m = grep{ $_->{version} eq  $ARGV[1]} @$array;
-say $_->{path} for @m;
+my $p = $version_path->("$ARGV[0]");
+if( defined $ARGV[1] ){ say $p->{$ARGV[1]} . '.tar.gz' }
+else { print Dumper $p }
 
 =head1
 

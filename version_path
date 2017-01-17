@@ -35,7 +35,8 @@ my $version_path = sub {
     while( <$fh> ){
         if(/Jump to version/){ $field = 1 }
         if( /(value|label)\=\"(.*?)\/(.*?)\/.*">(.*?)\ / ){
-                $version{"$4"} = "$2/$3" unless $field == 0;
+                return \%version if( $field == 1 and defined $version{"$4"});
+                unless( $field == 0 or defined $version{"$4"} ){ $version{"$4"} = "$2/$3" }
         }
     }
     return \%version;

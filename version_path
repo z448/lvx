@@ -22,6 +22,7 @@ my $get = sub {
        while( <$p> ){ $res .= $_ }
        return $res;
     };
+  #  return sub{ wget --no-check-certificate --check-certificate=quiet -P $dep_dir $dep{$_}");
 };
 
 

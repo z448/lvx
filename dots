@@ -55,10 +55,10 @@ my $install = sub {
     my $a = $conf->();
     return sub { for( @{ $a->{apps}->{$arch} } ){ `apt-get install $_` } };
 };
-my $c = $install->($arch);
-print $c->();
+#my $c = $install->($arch);
+#print $c->();
 
-#$write->();
+$write->();
 __DATA__
 # vim will use custom config in $MYVIMRC
 export MYVIMRC=~/.vimrc

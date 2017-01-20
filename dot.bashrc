@@ -1,8 +1,6 @@
 # profile
 
 
-# set vi mode on command line
-set -o vi
 
 # vim will use custom config in $MYVIMRC
 export MYVIMRC=~/.vimrc
@@ -22,5 +20,7 @@ bind '"\C-p":"cd ~/dpp && pwd\n"';
 perl -E 'if(`which setxkbmap`){ `setxkbmap -option \"caps:ctrl_modifier\"`}'
 
 # + also remap CAPS_LOCK to ESC on linux (usefull in vim, but commented out as i use "imap hh  <Esc>" in .vimrc to remap hh to ESC instead which works on iOS,OSX too)
-#perl -E 'if(`which xcape`){ `xcape -e \"Caps_Lock=Escape\"`}'
+perl -E 'if(`which xcape`){ `xcape -e \"Caps_Lock=Escape\"`}'
 
+# set vi mode on command line
+set -o vi

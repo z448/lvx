@@ -19,7 +19,7 @@ bind '"\C-p":"cd ~/dpp && pwd\n"';
 # remap CAPS_LOCK to CTRL on linux
 perl -E 'if(`which setxkbmap`){ `setxkbmap -option \"caps:ctrl_modifier\"`}'
 
-# + also remap CAPS_LOCK to ESC on linux (usefull in vim, but commented out as i use "imap hh  <Esc>" in .vimrc to remap hh to ESC instead which works on iOS,OSX too)
+# + also remap CAPS_LOCK to ESC on linux (usefull in vim)
 perl -E 'if(`which xcape`){ `xcape -e \"Caps_Lock=Escape\"`}'
 
 # set vi mode on command line

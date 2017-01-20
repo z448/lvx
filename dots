@@ -7,14 +7,20 @@ use strict;
 use File::Copy;
 use Data::Dumper;
 
+chomp(my $arch = `uname -n`);
+# find package which cmd belongs to "dpkg -S cmd"
 my $conf = sub {
-    my $c = {
+    my $c = {};
+
+    $c = {
         id => "#github.com/z448/perls/$0",
         dotfile => "$ENV{HOME}/.bashrc",
+        apps => {
+            debian =>  [ 'xsel', 'xclip', 'x11-xkb-utils', 'x11-apps' ],
+        },
         dots => [],
         data => [],
     };
-    chomp($c->{sys} = `uname -n`);
     while( <DATA> ){ chomp $_; push @{ $c->{data} }, $_  }
 # backup previous .bashrc
     copy($c->{dotfile}, "$c->{dotfile}.bak");
@@ -32,6 +38,7 @@ my $conf = sub {
     return $c;
 };
 
+
 my $write = sub {
     my $c = $conf->();
     open(my $fh,'>',$c->{dotfile}) || die "cant open $c->{dotfile}: $!";
@@ -40,10 +47,18 @@ my $write = sub {
     say $fh $_ for @{ $c->{data}};
     say $fh "$c->{id}#end";
     close $fh;
+    return $c;
 };
 
-$write->();
+my $install = sub {
+    my $arch = shift;
+    my $a = $conf->();
+    return sub { for( @{ $a->{apps}->{$arch} } ){ `apt-get install $_` } };
+};
+my $c = $install->($arch);
+print $c->();
 
+#$write->();
 __DATA__
 # vim will use custom config in $MYVIMRC
 export MYVIMRC=~/.vimrc

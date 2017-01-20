@@ -1,16 +1,48 @@
-#!/usr/bin/env perl
+#!/usr/bin/env perl use 5.010;
 
 use 5.010;
 use warnings;
 use strict;
 
-while( <DATA> ){ push @data, $_ }
+use File::Copy;
+use Data::Dumper;
 
-open(my $fh,'<',"$ENV{HOME}/.bashrc") || die "cant open ~/.bashrc: $!";
-while( <$fh> ){ push @brc, $_ }
-close $fh;
+my $conf = sub {
+    my $c = {
+        id => "#github.com/z448/perls/$0",
+        dotfile => "$ENV{HOME}/.bashrc",
+        dots => [],
+        data => [],
+    };
+    chomp($c->{sys} = `uname -n`);
+    while( <DATA> ){ chomp $_; push @{ $c->{data} }, $_  }
+# backup previous .bashrc
+    copy($c->{dotfile}, "$c->{dotfile}.bak");
 
+# read .bashrc content except old DATA
+    my $f = 0;
+    open(my $fh,'<',$c->{dotfile}) || die "cant open $c->{dotfile}: $!";
+    while( <$fh> ){ 
+        chomp;
+        if( $_ eq "$c->{id}#start" ){ $f = 1 }
+        push @{ $c->{dots} }, $_ unless $f == 1;
+        if( $_ eq "$c->{id}#end" ){ $f = 0 }
+    }
+    close $fh;
+    return $c;
+};
 
+my $write = sub {
+    my $c = $conf->();
+    open(my $fh,'>',$c->{dotfile}) || die "cant open $c->{dotfile}: $!";
+    say $fh $_ for @{ $c->{dots}};
+    say $fh "$c->{id}#start";
+    say $fh $_ for @{ $c->{data}};
+    say $fh "$c->{id}#end";
+    close $fh;
+};
+
+$write->();
 
 __DATA__
 # vim will use custom config in $MYVIMRC

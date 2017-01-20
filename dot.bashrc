@@ -1,7 +1,18 @@
-# profile
+#!/usr/bin/env perl
+
+use 5.010;
+use warnings;
+use strict;
+
+while( <DATA> ){ push @data, $_ }
+
+open(my $fh,'<',"$ENV{HOME}/.bashrc") || die "cant open ~/.bashrc: $!";
+while( <$fh> ){ push @brc, $_ }
+close $fh;
 
 
 
+__DATA__
 # vim will use custom config in $MYVIMRC
 export MYVIMRC=~/.vimrc
 
@@ -13,7 +24,7 @@ export PATH=~/local/bin:$PATH
 # set locale to UTF-8
 export LC_ALL="en_US.UTF-8"
 
-# CTRL-P will switch me into ~/dpp dir
+# CTRL-P will switch me into ~/dpp dir; doesnt work when sourced from bashrc; must be added into ~/.bashrc file
 bind '"\C-p":"cd ~/dpp && pwd\n"';
 
 # remap CAPS_LOCK to CTRL on linux

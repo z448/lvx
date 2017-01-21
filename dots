@@ -76,6 +76,7 @@ export LC_ALL="en_US.UTF-8"
 
 # CTRL-P will switch me into ~/dpp dir; doesnt work when sourced from bashrc; must be added into ~/.bashrc file
 bind '"\C-p":"cd ~/dpp && pwd\n"';
+bind '"\C-g":"cd ~/Documents/dpp/App-dpp-1.0 && pwd\n"';
 
 # remap CAPS_LOCK to CTRL on linux
 perl -E 'if(`which setxkbmap`){ `setxkbmap -option \"caps:ctrl_modifier\"`}'

@@ -60,6 +60,8 @@ my $install = sub {
 
 $write->();
 __DATA__
+#TODO: alias/bind for apt-cache search, apt-get install ..
+
 # set vi mode on command line
 set -o vi
 

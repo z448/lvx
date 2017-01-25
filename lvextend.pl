@@ -30,3 +30,13 @@ sub conf {
 ##my @opt = qw< p n p t 2 w 8e w >;
 my $f = conf('filesystem');
 print Dumper($f->($ARGV[0]));
+
+
+=head1 on ubuntu 16.04 do
+# http://unix.stackexchange.com/questions/199164/error-run-lvm-lvmetad-socket-connect-failed-no-such-file-or-directory-but
+systemctl enable lvm2-lvmetad.service
+systemctl enable lvm2-lvmetad.socket
+systemctl start lvm2-lvmetad.service
+systemctl start lvm2-lvmetad.socket
+=cut
+

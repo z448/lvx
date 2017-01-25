@@ -72,3 +72,35 @@ sdb                     8:16   0    5G  0 disk
   └─vg_repodata-lvol1 252:1    0  1.2G  0 lvm
 sr0                    11:0    1 1024M  0 rom
 
+---------o
+# http://unix.stackexchange.com/questions/238939/how-to-mount-a-logical-volume
+
+root@ubuntu:~# mkfs.ext4 /dev/vg_repodata/lvol0
+mke2fs 1.42.13 (17-May-2015)
+Creating filesystem with 307200 4k blocks and 76800 inodes
+Filesystem UUID: 8366f180-48a5-46b0-8cda-9a4f02abd7c8
+Superblock backups stored on blocks:
+        32768, 98304, 163840, 229376, 294912
+
+Allocating group tables: done
+Writing inode tables: done
+Creating journal (8192 blocks): done
+Writing superblocks and filesystem accounting information: done
+
+root@ubuntu:~# mkdir /big
+root@ubuntu:~# mount $LV_NAME /data
+mount: can't find /data in /etc/fstab
+root@ubuntu:~# mount /dev/vg_repodata/lvol0 /big
+root@ubuntu:~# df -h
+Filesystem                     Size  Used Avail Use% Mounted on
+udev                           973M     0  973M   0% /dev
+tmpfs                          199M   12M  187M   6% /run
+/dev/sda1                       48G  4.7G   41G  11% /
+tmpfs                          992M  2.4M  990M   1% /dev/shm
+tmpfs                          5.0M  4.0K  5.0M   1% /run/lock
+tmpfs                          992M     0  992M   0% /sys/fs/cgroup
+tmpfs                          199M   76K  199M   1% /run/user/1000
+/dev/sda3                      5.7G   12M  5.4G   1% /media/zdenek/38b3dc33-2987-46ca-a3eb-aa5cf31cbf9f
+/dev/mapper/vg_repodata-lvol0  1.2G  1.8M  1.1G   1% /big
+
+

@@ -1,6 +1,9 @@
 #!/usr/bin/env perl
 
 use 5.010;
+use warnings;
+use strict;
+
 use Data::Dumper;
 
 # http://unix.stackexchange.com/questions/199164/error-run-lvm-lvmetad-socket-connect-failed-no-such-file-or-directory-but
@@ -8,27 +11,39 @@ use Data::Dumper;
 
 my $mount_point =  sub {
     my $path = shift;
-    my( %m, $dfh )= ();
-    for(`df -h $path`){ chomp; $dfh = $_ unless $_ =~ /^Filesystem/ }
-    ( $m{filesystem}, $m{size}, $m{used}, $m{avail}, $m{used_perc}, $m{mountpoint})  = split(/\s+/, $dfh);
-    ( $m{vg}, $m{lv} ) = split(" ", `lvs $m{filesystem} --noheadings -o vg_name,lv_name`);
+    my( %m, @m )= ();
 
-    my @pv = ();
-    open my $p,'-|',"pvs -a";
-    while( <$p> ){
-        if(/(\/.*?) .*?($m{vg})/){ 
-            chomp $1; push @pv, $1;
+    my $dfh = `df -h $path`;
+    exit unless $dfh;
+
+    open(my $fh,'<', \$dfh);
+    while(<$fh>){
+        chomp; next if $_ =~ /Filesystem/;
+        ( $m{filesystem}, $m{size}, $m{used}, $m{avail}, $m{used_perc}, $m{mountpoint})  = split(/\s+/, $_);
+        ( $m{vg}, $m{lv} ) = split(" ", `lvs $m{filesystem} --noheadings -o vg_name,lv_name`);
+
+        my @pv = ();
+        open my $p,'-|',"pvs -a";
+        while( <$p> ){
+            if(/(\/.*?) .*?($m{vg})/){ 
+                chomp $1; push @pv, $1;
+            }
         }
-    }
-    $m{pv} = \@pv; close $p;
-    $m{disk} = $m{pv}->[0]; $m{disk} =~ s/[0-9]+//g;
-    return \%m;
+        $m{pv} = \@pv; close $p;
+        $m{disk} = $m{pv}->[0]; $m{disk} =~ s/[0-9]+//g;
+            push @m, {%m};
+        }
+        return \@m;
 };
 
+my $m = $mount_point->($ARGV[0]);
+print Dumper $m;
+
+__DATA__
 my $extend = sub {
 	my $path = shift;
-    	my $m = $mount_point->($path);
-    	print Dumper $m; #test
+    my $m = $mount_point->($path);
+    #print Dumper $m; #test
 	#my $p = qq{echo -e "n\n\n\n\nt\n8e\nw\n" |fdisk $m->{disk}};
 	#system("partprobe $m->{disk}");
 

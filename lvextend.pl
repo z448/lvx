@@ -52,29 +52,34 @@ my $e = $extend->("$ARGV[0]");
 
 __DATA__
 
-create partition sdb1 for full current space 5G
-initialize pv to use with lvm (pvcreate /dev/sdb1)
-create lv vg on sdb1 full extend to disk size(5G) (vgcreate vg_repodata /dev/sdb1; lvcreate -n lv_big -l 100%FREE vg_repodata)
+in VMWare add new disk 5G
+reboot linux
+lsblk will show new disk with NAME sdc (if sda and sdb exist.. every new disk uses next letter in alphabet as last letter )
+
+create partition sdc1 for full current space 5G (fdisk /dev/sdc)
+initialize pv to use with lvm (pvcreate /dev/sdc1)
+create vg and add /dev/sdc1 partition (vgcreate vg_repodata /dev/sdc1;
+create lv on sdc1 full extend to disk size(5G) and add it in vg  (lvcreate -n lv_big -l 100%FREE vg_repodata)
 make filesystem type (mkfs.ext4 /dev/vg_repodata/lv_big)
 mount lv to mountpoint (mount /dev/vg_repodata/lv_big /big)
 
 ----
 extend disk in vm to 7G
 
-sdb                      8:16   0    7G  0 disk
-└─sdb1                   8:17   0    5G  0 part
+sdc                      8:16   0    7G  0 disk
+└─sdc1                   8:17   0    5G  0 part
   └─vg_repodata-lv_big 252:0    0    5G  0 lvm
 ----
 
-create partition sdb2 for remainging space 2G
-initialize pv to use with lvm (pvcreate /dev/sdb2)
-force kernel to use new part table (partprobe /dev/sdb)
+create partition sdc2 for remainging space 2G
+initialize pv to use with lvm (pvcreate /dev/sdc2)
+force kernel to use new part table (partprobe /dev/sdc)
 Add this pv to vg_tecmint vg to extend the size of a volume group to get more space for expanding lv(vgextend vg_tecmint /dev/sda2)
 check available Physical Extends( available Physical Extend )
 expand lv(lvextend -l +4607 /dev/vg_repodata/lv_big)
 resize fs (resize2fs /dev/vg_repodata/lv_big)
 
-create lv vg on sdb2 full extend (2G)
+create lv vg on sdc2 full extend (2G)
 ???check fstype(df -T /big)
 ???make filesystem type (mkfs.ext4 /dev/vg_repodata/lv_big)
 

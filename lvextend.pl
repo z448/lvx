@@ -44,6 +44,26 @@ _448
 }
 
 extend("$ARGV[0]");
+__DATA__
+
+create partition sdb1 for full current space 5G
+initialize pv to use with lvm (pvcreate /dev/sdb1)
+create lv vg on sdb1 full extend to disk size(5G) (vgcreate vg_repodata /dev/sdb1; lvcreate -n lv_big -l 100%FREE vg_repodata)
+make filesystem type (mkfs.ext4 /dev/vg_repodata/lv_big)
+----
+extend disk in vm to 7G
+----
+create partition sdb2 for remainging space 2G
+Add this pv to vg_tecmint vg to extend the size of a volume group to get more space for expanding lv(vgextend vg_tecmint /dev/sda2)
+check available Physical Extends( available Physical Extend )
+expand lv(lvextend -l +4607 /dev/vg_repodata/lv_big)
+resize fs (resize2fs /dev/vg_repodata/lv_big)
+
+create lv vg on sdb2 full extend (2G)
+???check fstype(df -T /big)
+???make filesystem type (mkfs.ext4 /dev/vg_repodata/lv_big)
+
+
 
 =head1 non-interactive fdisk
 #!/bin/sh

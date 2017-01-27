@@ -14,7 +14,7 @@ my $mount_point =  sub {
     my( %m, @m )= ();
 
     my $dfh = `df -h $path`;
-    exit unless $dfh;
+    die "mountpoint $path doesnt exist" unless defined $dfh;
 
     open(my $fh,'<', \$dfh);
     while(<$fh>){
@@ -39,38 +39,24 @@ my $mount_point =  sub {
         #return \@m;
 };
 
-#my $m = $mount_point->($ARGV[0]);
-#print Dumper $m;
-
 my $extend = sub {
 	my $path = shift;
 	my $m = $mount_point->($path);
    	print Dumper $m; #test
-
-    open my $psss, '>&', STDERR;
-
 	open my $p,'|-', "fdisk $m->{disk}" ;
-    for( "n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n" ){ say $p $_ }
-	close $p;
-
-    open STDERR , '>&', $psss;
-
-=head1
 	say $p "n";
 print $p "\n";
 print $p "\n";
 print $p "\n";
 print $p "\n";
 print $p "t\n";
-#say $p "t";
 print $p "\n";
 print $p "8e\n";
-#say $p "8e";
 print $p "\n";
 print $p "w\n";
-sleep 1;
-=cut
+	close $p;
 
+	sleep 1;
 	system("partprobe $m->{disk}");
 	system("pvcreate $m->{pv_extend}");
 	system("vgextend $m->{vg} $m->{pv_extend}");

@@ -9,40 +9,58 @@ use Data::Dumper;
 # http://unix.stackexchange.com/questions/199164/error-run-lvm-lvmetad-socket-connect-failed-no-such-file-or-directory-but
 #system("systemctl enable lvm2-lvmetad.service && systemctl enable lvm2-lvmetad.socket && systemctl start lvm2-lvmetad.service && systemctl start lvm2-lvmetad.socket");
 
-my $mount_point =  sub {
+my $map = sub {
     my $path = shift;
     my( %m, @m )= ();
 
     my $dfh = `df -h $path`;
-    die "mountpoint $path doesnt exist" unless defined $dfh;
+    die "mountpoint $path doesnt exist" unless $dfh =~ /.*/;
 
     open(my $fh,'<', \$dfh);
     while(<$fh>){
         chomp; next if $_ =~ /Filesystem/;
-        ( $m{filesystem}, $m{size}, $m{used}, $m{avail}, $m{used_perc}, $m{mountpoint})  = split(/\s+/, $_);
-        ( $m{vg}, $m{lv} ) = split(" ", `lvs $m{filesystem} --noheadings -o vg_name,lv_name`);
+        ( $m{lv_path}, $m{size}, $m{used}, $m{avail}, $m{used_perc}, $m{mountpoint})  = split(/\s+/, $_);
+        ( $m{vg}, $m{lv} ) = split(" ", `lvs $m{lv_path} --noheadings -o vg_name,lv_name`);
 
         my @pv = ();
         open my $p,'-|',"pvs -a";
         while( <$p> ){
             if(/(\/.*?) .*?($m{vg})/){ 
                 chomp $1; push @pv, $1;
-		
             }
         }
+
         $m{pv} = \@pv; close $p;
         $m{disk} = $m{pv}->[0]; $m{disk} =~ s/[0-9]+//g;
-	$m{pv_extend} = $m{disk} . ($#pv + 2);
-        #push @m, {%m};
-        }
-        return \%m;
-        #return \@m;
+
+        open $p,'-|',"lsblk -dnl $m{disk} --output SIZE";
+        chomp( $m{disk_size} = <$p> ); close $p;
+
+        open $p,'-|',"lsblk -dnl $m{lv_path} --output SIZE";
+        chomp( $m{lv_size} = <$p> ); close $p;
+
+	    $m{pv_extend} = $m{disk} . ($#pv + 2);
+    }
+    return \%m;
 };
+
+=head1
+NAME               MAJ:MIN RM SIZE RO TYPE MOUNTPOINT
+sdc                  8:32   0   7G  0 disk
+sdc1                 8:33   0   5G  0 part
+vg_repodata-lv_big 252:2    0   7G  0 lvm  /big
+sdc2                 8:34   0   2G  0 part
+vg_repodata-lv_big 252:2    0   7G  0 lvm  /big
+=cut
 
 my $extend = sub {
 	my $path = shift;
-	my $m = $mount_point->($path);
+
+	my $m = $map->($path);
    	print Dumper $m; #test
+
+    open my $psss,'>&',STDOUT;
+    open STDOUT,'+>', undef;
 	open my $p,'|-', "fdisk $m->{disk}" ;
 	say $p "n";
 print $p "\n";
@@ -55,8 +73,8 @@ print $p "8e\n";
 print $p "\n";
 print $p "w\n";
 	close $p;
+    open STDOUT,'>&',$psss;
 
-	sleep 1;
 	system("partprobe $m->{disk}");
 	system("pvcreate $m->{pv_extend}");
 	system("vgextend $m->{vg} $m->{pv_extend}");
@@ -64,7 +82,15 @@ print $p "w\n";
 	system("resize2fs /dev/$m->{vg}/$m->{lv}");
 };
 
-$extend->($ARGV[0]);
+
+my $dfh = `df -h $ARGV[0]`; chomp $dfh;
+
+if( $dfh =~ /./ ){
+    my $m = $map->($ARGV[0]);
+    if( $m->{disk_size} eq $m->{lv_size} ){ die "$m->{lv} size same as $m->{disk} size, nothing to do" }
+    else { $extend->($ARGV[0]) }
+} else { die }
+
 
 
 

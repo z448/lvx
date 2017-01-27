@@ -27,39 +27,50 @@ my $mount_point =  sub {
         while( <$p> ){
             if(/(\/.*?) .*?($m{vg})/){ 
                 chomp $1; push @pv, $1;
+		
             }
         }
         $m{pv} = \@pv; close $p;
         $m{disk} = $m{pv}->[0]; $m{disk} =~ s/[0-9]+//g;
-            push @m, {%m};
+	$m{pv_extend} = $m{disk} . ($#pv + 2);
+        #push @m, {%m};
         }
-        return \@m;
+        return \%m;
+        #return \@m;
 };
 
-my $m = $mount_point->($ARGV[0]);
-print Dumper $m;
+#my $m = $mount_point->($ARGV[0]);
+#print Dumper $m;
 
-__DATA__
 my $extend = sub {
 	my $path = shift;
-    my $m = $mount_point->($path);
-    #print Dumper $m; #test
-	#my $p = qq{echo -e "n\n\n\n\nt\n8e\nw\n" |fdisk $m->{disk}};
-	#system("partprobe $m->{disk}");
+	my $m = $mount_point->($path);
+   	print Dumper $m; #test
+	open my $p,'|-', "fdisk $m->{disk}" ;
+	say $p "n";
+print $p "\n";
+print $p "\n";
+print $p "\n";
+print $p "\n";
+print $p "t\n";
+#say $p "t";
+print $p "\n";
+print $p "8e\n";
+#say $p "8e";
+print $p "\n";
+print $p "w\n";
+	close $p;
 
-	my @pv = @{ $m->{pv} };
-	my $last_pv = $pv[$#pv]; 
-	my $new_pv = $last_pv;
-	$new_pv =~ /(.*?)([0-9]).*/;
-	my($pv, $nr) = ($1, $2); $nr++; $pv = $pv . $nr;
-	say $pv;
-	#system("pvcreate $pv");
-	#system("vgextend $m->{vg} $m->{$pv}");
-	#system("lvextend -l +100% $m->{}");
-	#system("resize2fs /dev/vg_repodata/lv_big");
+	sleep 1;
+	system("partprobe $m->{disk}");
+	system("pvcreate $m->{pv_extend}");
+	system("vgextend $m->{vg} $m->{pv_extend}");
+	system("lvextend -l +100%FREE /dev/$m->{vg}/$m->{lv}");
+	system("resize2fs /dev/$m->{vg}/$m->{lv}");
 };
 
-my $e = $extend->("$ARGV[0]");
+$extend->($ARGV[0]);
+
 
 
 

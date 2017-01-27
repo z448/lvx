@@ -39,7 +39,11 @@ my $map = sub {
         open $p,'-|',"lsblk -dnl $m{lv_path} --output SIZE";
         chomp( $m{lv_size} = <$p> ); close $p;
 
-	    $m{pv_extend} = $m{disk} . ($#pv + 2);
+        $m{pv_next} = $m{disk} . ($#pv + 2);
+        $m{pv_last} = $#pv + 1;
+
+        $m{fdisk_seq} = ["n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n"]; 
+        unshift @{$m{fdisk_seq}}, ("t\n","\n","5\n") if int($m{pv_last}/4);
     }
     return \%m;
 };
@@ -54,30 +58,22 @@ vg_repodata-lv_big 252:2    0   7G  0 lvm  /big
 =cut
 
 my $extend = sub {
-	my $path = shift;
-
-	my $m = $map->($path);
+	my $m = shift;
    	print Dumper $m; #test
-
-    open my $psss,'>&',STDOUT;
-    open STDOUT,'+>', undef;
+    #open my $psss,'>&',STDOUT;
+    #open STDOUT,'+>', undef;
 	open my $p,'|-', "fdisk $m->{disk}" ;
-	say $p "n";
-print $p "\n";
-print $p "\n";
-print $p "\n";
-print $p "\n";
-print $p "t\n";
-print $p "\n";
-print $p "8e\n";
-print $p "\n";
-print $p "w\n";
+    for( @{$m->{fdisk_seq}} ){ print $p $_ };
 	close $p;
-    open STDOUT,'>&',$psss;
+    #open STDOUT,'>&',$psss;
 
+};
+
+my $lv = sub {
+    my $m = shift;
 	system("partprobe $m->{disk}");
-	system("pvcreate $m->{pv_extend}");
-	system("vgextend $m->{vg} $m->{pv_extend}");
+	system("pvcreate $m->{pv_next}");
+	system("vgextend $m->{vg} $m->{pv_next}");
 	system("lvextend -l +100%FREE /dev/$m->{vg}/$m->{lv}");
 	system("resize2fs /dev/$m->{vg}/$m->{lv}");
 };
@@ -87,8 +83,8 @@ my $dfh = `df -h $ARGV[0]`; chomp $dfh;
 
 if( $dfh =~ /./ ){
     my $m = $map->($ARGV[0]);
-    if( $m->{disk_size} eq $m->{lv_size} ){ die "$m->{lv} size same as $m->{disk} size, nothing to do" }
-    else { $extend->($ARGV[0]) }
+    if( $m->{disk_size} eq $m->{lv_size} ){ say Dumper $m and die "$m->{lv} size same as $m->{disk} size, nothing to do" }
+    else { say $extend->($m); say $lv->($m) }
 } else { die }
 
 

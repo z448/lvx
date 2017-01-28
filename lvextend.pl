@@ -6,9 +6,6 @@ use strict;
 
 use Data::Dumper;
 
-# http://unix.stackexchange.com/questions/199164/error-run-lvm-lvmetad-socket-connect-failed-no-such-file-or-directory-but
-#system("systemctl enable lvm2-lvmetad.service && systemctl enable lvm2-lvmetad.socket && systemctl start lvm2-lvmetad.service && systemctl start lvm2-lvmetad.socket");
-
 my $map = sub {
     my( $path, $size ) = @_;
     my( %m, @m )= ();
@@ -43,78 +40,45 @@ my $map = sub {
         $m{pv_last} = $#pv + 1;
 
         $m{fdisk_seq} = ["n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n"]; 
-        $m{fdisk_seq}->[4] = "$size\n" if defined $size;
-        unshift @{$m{fdisk_seq}}, ("t\n","\n","5\n") if int($m{pv_last}/4);
+        $m{fdisk_seq}->[3] = "$size\n" if defined $size;
     }
     return \%m;
 };
 
-=head1
-NAME               MAJ:MIN RM SIZE RO TYPE MOUNTPOINT
-sdc                  8:32   0   7G  0 disk
-sdc1                 8:33   0   5G  0 part
-vg_repodata-lv_big 252:2    0   7G  0 lvm  /big
-sdc2                 8:34   0   2G  0 part
-vg_repodata-lv_big 252:2    0   7G  0 lvm  /big
-=cut
-
 my $create_part = sub {
 	my $m = shift;
-   	print Dumper $m; #test
-    #open my $psss,'>&',STDOUT;
-    #open STDOUT,'+>', undef;
+    open my $psss,'>&',STDOUT;
+    open STDOUT,'+>', undef;
 	open my $p,'|-', "fdisk $m->{disk}" ;
     for( @{$m->{fdisk_seq}} ){ print $p $_ };
 	close $p;
-    #open STDOUT,'>&',$psss;
-    say "partprobe";
+    open STDOUT,'>&',$psss;
 	system("partprobe $m->{disk}");
     say "pvcreate";
 	system("pvcreate $m->{pv_next}");
-    #system("pvcreate $m->{pv_next}");
 	system("vgextend $m->{vg} $m->{pv_next}");
 
 };
 
 my $lv_extend = sub {
-    my( $m, $size ) = @_;
-    $size = "-L $size" if defined $size;
-    $size = "-l 100%FREE" unless defined $size;
-
-	system("lvextend $size /dev/$m->{vg}/$m->{lv}");
-    #system("lvextend -l +100%FREE /dev/$m->{vg}/$m->{lv}");
+    my $m = shift;
+    system("lvextend -l +100%FREE /dev/$m->{vg}/$m->{lv}");
 	system("resize2fs /dev/$m->{vg}/$m->{lv}");
 };
-
-my $test = sub {
-    my $p = shift;
-my @cmd = (
-"pvcreate /dev/$p"."1",
-"vgcreate vg_repodata /dev/$p" . "1",
-"lvcreate -n lv_big -l 100%FREE vg_repodata",
-"mkfs.ext4 /dev/vg_repodata/lv_big",
-"mount lv to mountpoint (mount /dev/vg_repodata/lv_big /big", );
-for( @cmd ){ system("$_") }
-};
-
-#if($ARGV[0] eq '+'){ $test->($ARGV[1]) and die }; 
 
 my $lvm = sub {
     my( $path, $size ) = @_;
     my $dfh = `df -h $path`; chomp $dfh;
-    #my $dfh = `df -h $ARGV[0]`; chomp $dfh;
-    die if $dfh !~ /./;
+    die if $dfh !~ /$path/;
 
-    #if( $dfh =~ /./ ){
-        my $m = $map->($path, $size);
-        say Dumper $m;
-        #my $m = $map->($ARGV[0], '+200M');
-        if( $m->{disk_size} eq $m->{lv_size} ){ say Dumper $m and die "$m->{lv} size same as $m->{disk} size, nothing to do" }
-        else { $create_part->($m); sleep 1; say $lv_extend->($m) }
-        #}
+    my $m = $map->($path, $size);
+    say Dumper $m if $ENV{lvextender} == 1;
+    die "cant create more LVM partitions on $m->{disk}" if $m->{pv_last} == 4;
+    if( $m->{disk_size} eq $m->{lv_size} ){ say Dumper $m and die "$m->{lv} size same as $m->{disk} size, nothing to do" }
+    else { $create_part->($m,$size); sleep 1; say $lv_extend->($m) }
 };
 
-$lvm->('/big', '+300');
+$lvm->(@ARGV);
 
 
 
@@ -136,6 +100,16 @@ make filesystem type (mkfs.ext4 /dev/vg_repodata/lv_big)
 mount lv to mountpoint (mount /dev/vg_repodata/lv_big /big)
 put in /etc/fstab (/dev/vg_repodata/lv_big /big ext4 defaults 0 1)
 
+OTHER COMMANDS
+remove PV
+- first remove PV frmom VG (vgreduce vg_repodata /dev/sdb3)
+- then remove PV from LVM (pvremove /dev/sdb3)
+
+if doesnt work
+
+- remove partition fdisk /dev/sdb
+- remove PV (vgreduce --removemissing --force vg_repodata)
+
 ----
 extend disk in vm to 7G
 
@@ -156,17 +130,5 @@ create lv vg on sdc2 full extend (2G)
 ???check fstype(df -T /big)
 ???make filesystem type (mkfs.ext4 /dev/vg_repodata/lv_big)
 
-
-
-=head1 non-interactive fdisk
-#!/bin/sh
-hdd="/dev/hda /dev/hdb /dev/hdc"
-for i in $hdd;do
-echo "n
-p
-1
-
-
-w
-"|fdisk $i;mkfs.ext3 $i;done 
-=cut
+# http://unix.stackexchange.com/questions/199164/error-run-lvm-lvmetad-socket-connect-failed-no-such-file-or-directory-but
+#system("systemctl enable lvm2-lvmetad.service && systemctl enable lvm2-lvmetad.socket && systemctl start lvm2-lvmetad.service && systemctl start lvm2-lvmetad.socket");

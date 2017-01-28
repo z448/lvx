@@ -5,6 +5,7 @@ use warnings;
 use strict;
 
 use Data::Dumper;
+use File::Path qw( mkpath );
 
 my $map = sub {
     my( $path, $size ) = @_;
@@ -38,9 +39,9 @@ my $map = sub {
 
         $m{pv_next} = $m{disk} . ($#pv + 2);
         $m{pv_last} = $#pv + 1;
-
+                                          #--
         $m{fdisk_seq} = ["n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n"]; 
-        $m{fdisk_seq}->[3] = "$size\n" if defined $size;
+        $m{fdisk_seq}->[4] = "$size\n" if defined $size;
     }
     return \%m;
 };
@@ -52,9 +53,8 @@ my $create_part = sub {
 	open my $p,'|-', "fdisk $m->{disk}" ;
     for( @{$m->{fdisk_seq}} ){ print $p $_ };
 	close $p;
-    open STDOUT,'>&',$psss;
 	system("partprobe $m->{disk}");
-    say "pvcreate";
+    open STDOUT,'>&',$psss;
 	system("pvcreate $m->{pv_next}");
 	system("vgextend $m->{vg} $m->{pv_next}");
 
@@ -70,19 +70,66 @@ my $lvm = sub {
     my( $path, $size ) = @_;
     my $dfh = `df -h $path`; chomp $dfh;
     die if $dfh !~ /$path/;
+    if( defined $size and $size !~ /^\+[0-9]+(K|M|G|T|P)$/){ die system("perldoc $0") }
 
     my $m = $map->($path, $size);
-    say Dumper $m if $ENV{lvextender} == 1;
+    #say Dumper $m;
     die "cant create more LVM partitions on $m->{disk}" if $m->{pv_last} == 4;
     if( $m->{disk_size} eq $m->{lv_size} ){ say Dumper $m and die "$m->{lv} size same as $m->{disk} size, nothing to do" }
-    else { $create_part->($m,$size); sleep 1; say $lv_extend->($m) }
+    else { $create_part->($m,$size); sleep 1; say $lv_extend->($m); say `lsblk` }
 };
 
-$lvm->(@ARGV);
+my $lv_new = sub {
+    my($disk, $vg, $lv, $path, $size) = @_;
+    my $part = $disk . '1';
+
+    mkpath($path) unless -d $path;
+
+    my $fdisk_seq = ["n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n"]; 
+    $fdisk_seq->[4] = "$size\n" if defined $size;
+	open my $p,'|-', "fdisk $disk" ;
+    for( @{$fdisk_seq} ){ print $p $_ };
+	close $p;
+
+	system("partprobe $disk");
+	system("pvcreate $part");
+    system("vgcreate $vg $part");
+    system("lvcreate -n $lv -l 100%FREE $vg");
+    system("mkfs.ext4 /dev/$vg/$lv");
+    system("mount /dev/$vg/$lv $path");
+};
+
+
+if($ARGV[0] eq 'test'){
+    $lv_new->('/dev/sdb','vg_repodata','lv_big','/big','+300M');
+    my $m = $map->('/big');
+    delete $m->{fdisk_seq};
+    delete $m->{pv_next};
+    delete $m->{pv_last};
+    say Dumper $m;
+    die;
+} else {
+    $lvm->(@ARGV);
+}
 
 
 
 
+=head1 NAME 
+
+lvextender - extend existing lv
+
+=head1 USAGE
+
+Extend lv mounted on /dir to full size of disk
+
+C<lvextender /dir>
+
+Extend lv mounted on /dir by 3G
+
+C<lvextender /dir +3G>
+
+=cut
 
 
 

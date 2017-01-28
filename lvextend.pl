@@ -10,7 +10,7 @@ use Data::Dumper;
 #system("systemctl enable lvm2-lvmetad.service && systemctl enable lvm2-lvmetad.socket && systemctl start lvm2-lvmetad.service && systemctl start lvm2-lvmetad.socket");
 
 my $map = sub {
-    my $path = shift;
+    my( $path, $size ) = @_;
     my( %m, @m )= ();
 
     my $dfh = `df -h $path`;
@@ -43,6 +43,7 @@ my $map = sub {
         $m{pv_last} = $#pv + 1;
 
         $m{fdisk_seq} = ["n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n"]; 
+        $m{fdisk_seq}->[4] = "$size\n" if defined $size;
         unshift @{$m{fdisk_seq}}, ("t\n","\n","5\n") if int($m{pv_last}/4);
     }
     return \%m;
@@ -57,7 +58,7 @@ sdc2                 8:34   0   2G  0 part
 vg_repodata-lv_big 252:2    0   7G  0 lvm  /big
 =cut
 
-my $extend = sub {
+my $create_part = sub {
 	my $m = shift;
    	print Dumper $m; #test
     #open my $psss,'>&',STDOUT;
@@ -66,17 +67,22 @@ my $extend = sub {
     for( @{$m->{fdisk_seq}} ){ print $p $_ };
 	close $p;
     #open STDOUT,'>&',$psss;
-
-};
-
-my $lv = sub {
-    my $m = shift;
     say "partprobe";
 	system("partprobe $m->{disk}");
     say "pvcreate";
 	system("pvcreate $m->{pv_next}");
+    #system("pvcreate $m->{pv_next}");
 	system("vgextend $m->{vg} $m->{pv_next}");
-	system("lvextend -l +100%FREE /dev/$m->{vg}/$m->{lv}");
+
+};
+
+my $lv_extend = sub {
+    my( $m, $size ) = @_;
+    $size = "-L $size" if defined $size;
+    $size = "-l 100%FREE" unless defined $size;
+
+	system("lvextend $size /dev/$m->{vg}/$m->{lv}");
+    #system("lvextend -l +100%FREE /dev/$m->{vg}/$m->{lv}");
 	system("resize2fs /dev/$m->{vg}/$m->{lv}");
 };
 
@@ -91,14 +97,24 @@ my @cmd = (
 for( @cmd ){ system("$_") }
 };
 
-if($ARGV[0] eq '+'){ $test->($ARGV[1]) and die }; 
-my $dfh = `df -h $ARGV[0]`; chomp $dfh;
+#if($ARGV[0] eq '+'){ $test->($ARGV[1]) and die }; 
 
-if( $dfh =~ /./ ){
-    my $m = $map->($ARGV[0]);
-    if( $m->{disk_size} eq $m->{lv_size} ){ say Dumper $m and die "$m->{lv} size same as $m->{disk} size, nothing to do" }
-    else { say $extend->($m);sleep 1; say $lv->($m) }
-} else { die }
+my $lvm = sub {
+    my( $path, $size ) = @_;
+    my $dfh = `df -h $path`; chomp $dfh;
+    #my $dfh = `df -h $ARGV[0]`; chomp $dfh;
+    die if $dfh !~ /./;
+
+    #if( $dfh =~ /./ ){
+        my $m = $map->($path, $size);
+        say Dumper $m;
+        #my $m = $map->($ARGV[0], '+200M');
+        if( $m->{disk_size} eq $m->{lv_size} ){ say Dumper $m and die "$m->{lv} size same as $m->{disk} size, nothing to do" }
+        else { $create_part->($m); sleep 1; say $lv_extend->($m) }
+        #}
+};
+
+$lvm->('/big', '+300');
 
 
 
@@ -118,6 +134,7 @@ create vg and add /dev/sdc1 partition (vgcreate vg_repodata /dev/sdc1;
 create lv on sdc1 full extend to disk size(5G) and add it in vg  (lvcreate -n lv_big -l 100%FREE vg_repodata)
 make filesystem type (mkfs.ext4 /dev/vg_repodata/lv_big)
 mount lv to mountpoint (mount /dev/vg_repodata/lv_big /big)
+put in /etc/fstab (/dev/vg_repodata/lv_big /big ext4 defaults 0 1)
 
 ----
 extend disk in vm to 7G

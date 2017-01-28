@@ -55,6 +55,23 @@ my $install = sub {
     my $a = $conf->();
     return sub { for( @{ $a->{apps}->{$arch} } ){ `apt-get install $_` } };
 };
+
+=head1
+my %ini = ();
+
+my $arch = {
+    for(`uname -a`){
+        chomp $_;
+        return 'Ubutnu' if $_ =~ /ubuntu/;
+        return 'iPhone' if $_ =~ /iphone/;
+        return 'darwin' if $_ =~ /osx/;
+    }
+};
+
+my %conf = ();
+$conf{arch} ;
+=cut
+
 #my $c = $install->($arch);
 #print $c->();
 
@@ -86,3 +103,9 @@ perl -E 'if(`which setxkbmap`){ `setxkbmap -option \"caps:ctrl_modifier\"`}'
 # + also remap CAPS_LOCK to ESC on linux (usefull in vim)
 perl -E 'if(`which xcape`){ `xcape -e \"Caps_Lock=Escape\"`}'
 
+# mount HFS+ external disk
+# apt-get install hfsprogs
+# mount -t hfsplus -o force,rw /dev/sdb3 /1T
+# chmod -R 775 /1T
+# chown -R zdenek:zdenek /1T
+#

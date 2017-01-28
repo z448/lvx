@@ -71,20 +71,33 @@ my $extend = sub {
 
 my $lv = sub {
     my $m = shift;
+    say "partprobe";
 	system("partprobe $m->{disk}");
+    say "pvcreate";
 	system("pvcreate $m->{pv_next}");
 	system("vgextend $m->{vg} $m->{pv_next}");
 	system("lvextend -l +100%FREE /dev/$m->{vg}/$m->{lv}");
 	system("resize2fs /dev/$m->{vg}/$m->{lv}");
 };
 
+my $test = sub {
+    my $p = shift;
+my @cmd = (
+"pvcreate /dev/$p"."1",
+"vgcreate vg_repodata /dev/$p" . "1",
+"lvcreate -n lv_big -l 100%FREE vg_repodata",
+"mkfs.ext4 /dev/vg_repodata/lv_big",
+"mount lv to mountpoint (mount /dev/vg_repodata/lv_big /big", );
+for( @cmd ){ system("$_") }
+};
 
+if($ARGV[0] eq '+'){ $test->($ARGV[1]) and die }; 
 my $dfh = `df -h $ARGV[0]`; chomp $dfh;
 
 if( $dfh =~ /./ ){
     my $m = $map->($ARGV[0]);
     if( $m->{disk_size} eq $m->{lv_size} ){ say Dumper $m and die "$m->{lv} size same as $m->{disk} size, nothing to do" }
-    else { say $extend->($m); say $lv->($m) }
+    else { say $extend->($m);sleep 1; say $lv->($m) }
 } else { die }
 
 

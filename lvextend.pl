@@ -79,6 +79,17 @@ my $lvm = sub {
     else { $create_part->($m,$size); sleep 1; say $lv_extend->($m); say `lsblk` }
 };
 
+my $lv_exist = sub {
+    my( $name, $type) = @_;
+    my $cmd = $type . 's';
+    open my $p,'-|', "$cmd --noheadings $name";
+    my $exist = <$p>;
+    if($exist){
+        $exist =~ s/\s+(.*?)\s+(.*?)\s.*/$1$2/;
+        return $2;
+    }
+};
+
 my $lv_new = sub {
     my($disk, $vg, $lv, $path, $size) = @_;
     #my $part = $disk . '1';
@@ -99,17 +110,25 @@ my $lv_new = sub {
     say "fdisk:". $fdisk->($disk) if $disk =~ /[0-9]$/;
 
 	system("pvcreate $disk");
+
+    #system("vgextend $vg $disk");
+    #system("lvextend -L $size /dev/$vg/$lv");
+    #system("resize2fs /dev/$vg/$lv");
+    
     system("vgcreate $vg $disk");
+    system("lvcreate -n $lv -l 100%FREE $vg");
     system("lvcreate -n $lv -l 100%FREE $vg");
     system("mkfs.ext4 /dev/$vg/$lv");
     system("mount /dev/$vg/$lv $path");
 };
 
 
+#my $e = $lv_exist->("vg_repodata","vg"); if($e){ print $e }; die; #test
+
 die system("perldoc $0") unless @ARGV;
 
 if($ARGV[0] eq 'test'){
-    $lv_new->('/dev/sdd','vg_repodata2','lv_big2','/big','+200M');
+    $lv_new->('/dev/sdd','vg_repodata','lv_big','/big','+700M');
     my $m = $map->('/big');
     delete $m->{fdisk_seq};
     delete $m->{pv_next};

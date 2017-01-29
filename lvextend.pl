@@ -81,24 +81,31 @@ my $lvm = sub {
 
 my $lv_new = sub {
     my($disk, $vg, $lv, $path, $size) = @_;
-    my $part = $disk . '1';
+    #my $part = $disk . '1';
 
     mkpath($path) unless -d $path;
 
-    my $fdisk_seq = ["n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n"]; 
-    $fdisk_seq->[4] = "$size\n" if defined $size;
-	open my $p,'|-', "fdisk $disk" ;
-    for( @{$fdisk_seq} ){ print $p $_ };
-	close $p;
+    # create partition if $disk ends with number
+    my $fdisk = sub {
+        my $disk = shift;
+        my $fdisk_seq = ["n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n"]; 
+        $fdisk_seq->[4] = "$size\n" if defined $size;
+        open my $p,'|-', "fdisk $disk" ;
+        for( @{$fdisk_seq} ){ print $p $_ };
+        close $p;
+        system("partprobe $disk");
+    };
+    say "fdisk:". $fdisk->($disk) if $disk =~ /[0-9]$/;
 
-	system("partprobe $disk");
-	system("pvcreate $part");
-    system("vgcreate $vg $part");
+	system("pvcreate $disk");
+    system("vgcreate $vg $disk");
     system("lvcreate -n $lv -l 100%FREE $vg");
     system("mkfs.ext4 /dev/$vg/$lv");
     system("mount /dev/$vg/$lv $path");
 };
 
+
+die system("perldoc $0") unless @ARGV;
 
 if($ARGV[0] eq 'test'){
     $lv_new->('/dev/sdb','vg_repodata','lv_big','/big','+300M');

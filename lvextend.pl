@@ -9,6 +9,7 @@ use File::Path qw( mkpath );
 use Getopt::Std;
 
 my $opt = {};
+my $ch;
 getopts('n:e:', $opt);
 
 
@@ -89,7 +90,7 @@ my $lvm = sub {
 
     my $m = $map->( $path, $size);
     say Dumper $m;
-    #die "cant create more LVM partitions on $m->{disk}" if $m->{pv_last} == 4;
+    #die "cant create more LVM partitions on $m->{disk}" if $m->{pv_last} == 4; 
     if( $m->{disk_size} eq $m->{lv_size} ){ say Dumper $m and die "$m->{lv} size same as $m->{disk} size, nothing to do" }
     else { $create_part->($m,$size); sleep 1; say $lv_extend->($m); say `lsblk` }
 };
@@ -98,13 +99,12 @@ my $lv_exist = sub {
     my( $name, $type) = @_;
     my $cmd = $type . 's';
     open my $p,'-|', "$cmd --noheadings";
-    #open my $p,'-|', "$cmd --noheadings $name";
+
     my $exist;
     while(<$p>){ chomp($exist = $_) if $_ =~ /$name/ }
     close $p;
     if($exist){
         $exist =~ s/\s+(.*?)\s+(.*?)\s.*/$1$2/;
-        #return $1;
         return $2 if $name eq $1;
     }
 };
@@ -116,7 +116,6 @@ my $lv_new = sub {
 #open STDOUT,'+>', undef;
     mkpath($path) unless -d $path;
 
-    # create partition if $disk ends with number
     my $fdisk = sub {
         my $part = shift;
         my $disk = $part; $disk =~ s/[0-9]//g;
@@ -128,12 +127,12 @@ my $lv_new = sub {
         system("partprobe $disk");
     };
 
-    #my $lve = $lv_exist->($lv,'lv');
-    #my $vge = $lv_exist->($vg,'vg');
-    #die "$lv belongs to $vg" unless $vg eq $lv_exist->($lv,'lv');
-    $fdisk->($disk) if $disk =~ /[0-9]$/;
+    if( $disk =~ /[0-9]$/ ){ $ch = $fdisk->($disk) } else { die "need partition not disk" }
+    say "fdisk status:" . $ch;
 
-    system("pvcreate $disk") unless $lv_exist->($disk,'pv');
+    $ch = system("pvcreate $disk") unless $lv_exist->($disk,'pv');
+    say "pvcreate status:" . $ch;
+
 
     my $p = {
         vg  =>  sub{ 
@@ -145,44 +144,22 @@ my $lv_new = sub {
                     my $lve = $lv_exist->($lv,'lv');
                     if( defined $lve ){ 
                         return "lvextend -l +100%FREE /dev/$vg/$lv && resize2fs /dev/$vg/$lv";
-                        #return "lvextend -l 100%FREE /dev/$vg/$lv && resize2fs /dev/$vg/$lv";
                     } else {
                         return "lvcreate -n $lv -l 100%FREE $vg && mkfs.ext4 /dev/$vg/$lv";
                     }
                 },
         };
 
-        #say "######## system(" . $p->{vg}->() . ")";
-        #say "######## system(" . $p->{lv}->() . ")";
         system($p->{vg}->());
         system($p->{lv}->());
         system("mount /dev/$vg/$lv $path");
 
 #open STDOUT,'>&',$psss;
-
-                    
-                        
-=head1
-        if( $lv_exist->($vg,'vg') ){ 
-            system("vgextend $vg $disk")
-            system("lvextend -L $size /dev/$vg/$lv");
-        system("resize2fs /dev/$vg/$lv");
-        
-        system("vgcreate $vg $disk");
-        system("lvcreate -n $lv -l 100%FREE $vg");
-        system("mkfs.ext4 /dev/$vg/$lv");
-=cut
-
-
-
 };
 
-
-#my $e = $lv_exist->("vg_repodata","vg"); if($e){ print $e }; die; #test
-
-#die system("perldoc $0") unless @ARGV;
-#say "[". $lv_exist->('lv_nuc','lv') . "]";die;
-
+unless( defined $opt->{n} or defined $opt->{e} ){ 
+    die system("perldoc $0");
+}
 
 if(defined $opt->{n}){
     my @new = split(',',$opt->{n});

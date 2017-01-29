@@ -11,8 +11,6 @@ use Getopt::Std;
 my $opt = {};
 getopts('n:e:', $opt);
 
-open my $psss,'>&',STDOUT;
-open STDOUT,'+>', undef;
 
 my $map = sub {
     my( $path, $size ) = @_;
@@ -91,7 +89,7 @@ my $lvm = sub {
 
     my $m = $map->( $path, $size);
     say Dumper $m;
-    die "cant create more LVM partitions on $m->{disk}" if $m->{pv_last} == 4;
+    #die "cant create more LVM partitions on $m->{disk}" if $m->{pv_last} == 4;
     if( $m->{disk_size} eq $m->{lv_size} ){ say Dumper $m and die "$m->{lv} size same as $m->{disk} size, nothing to do" }
     else { $create_part->($m,$size); sleep 1; say $lv_extend->($m); say `lsblk` }
 };
@@ -114,6 +112,8 @@ my $lv_exist = sub {
 my $lv_new = sub {
     my($disk, $vg, $lv, $path, $size) = @_;
 
+#open my $psss,'>&',STDOUT;
+#open STDOUT,'+>', undef;
     mkpath($path) unless -d $path;
 
     # create partition if $disk ends with number
@@ -158,6 +158,7 @@ my $lv_new = sub {
         system($p->{lv}->());
         system("mount /dev/$vg/$lv $path");
 
+#open STDOUT,'>&',$psss;
 
                     
                         
@@ -182,7 +183,6 @@ my $lv_new = sub {
 #die system("perldoc $0") unless @ARGV;
 #say "[". $lv_exist->('lv_nuc','lv') . "]";die;
 
-open STDOUT,'>&',$psss;
 
 if(defined $opt->{n}){
     my @new = split(',',$opt->{n});

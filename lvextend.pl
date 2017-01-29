@@ -90,9 +90,11 @@ my $lv_exist = sub {
     my $cmd = $type . 's';
     open my $p,'-|', "$cmd --noheadings $name";
     my $exist = <$p>;
+    close $p;
     if($exist){
         $exist =~ s/\s+(.*?)\s+(.*?)\s.*/$1$2/;
-        return $2 if $1 eq $name;
+        #return $1;
+        return $2 if $name eq $1;
     }
 };
 
@@ -112,28 +114,33 @@ my $lv_new = sub {
         close $p;
         system("partprobe $disk");
     };
+
+    #my $lve = $lv_exist->($lv,'lv');
+    #my $vge = $lv_exist->($vg,'vg');
+    #die "$lv belongs to $vg" unless $vg eq $lv_exist->($lv,'lv');
     $fdisk->($disk) if $disk =~ /[0-9]$/;
 
-    system("pvcreate $disk");
+    system("pvcreate $disk") unless $lv_exist->($disk,'pv');
 
     my $p = {
         vg  =>  sub{ 
-                my $v = "vgextend $vg $disk";
-                $v = "vgcreate $vg $disk" unless $lv_exist->($vg,'vg');
-                return $v;
-            },
+                    my $v = "vgextend $vg $disk" if $lv_exist->($vg,'vg');
+                    $v = "vgcreate $vg $disk" unless $lv_exist->($vg,'vg');
+                    return $v;
+                },
         lv  =>  sub{
-                my $l = "lvresize -l 100%VG /dev/$vg/$lv && resize2fs /dev/$vg/$lv";
-                
-                #my $l = "lvextend -L $size /dev/$vg/$lv && resize2fs /dev/$vg/$lv";
-                $l = "lvcreate -n $lv -L $size $vg && mkfs.ext4 /dev/$vg/$lv" unless $lv_exist->($lv,'lv');
-                return $l;
-            },
+                    if($lv_exist->($lv,'lv')){ 
+                        #if( $vg not $lv_exist->($lv,'lv') ){ die "$lv belongs to $vg" };
+                        return "lvextend -l 100%FREE /dev/$vg/$lv && resize2fs /dev/$vg/$lv";
+                    } else {
+                        return "lvcreate -n $lv -l 100%FREE $vg && mkfs.ext4 /dev/$vg/$lv";
+                    }
+                },
         };
 
-        #say "system(" . $p->{vg}->() . ")";
-        system($p->{vg}->());
-        system($p->{lv}->());
+        #say "######## system(" . $p->{vg}->() . ")";
+        #say "######## system(" . $p->{lv}->() . ")";
+        system($p->{vg}->() && $p->{lv}->());
         system("mount /dev/$vg/$lv $path");
 
 
@@ -158,7 +165,7 @@ my $lv_new = sub {
 #my $e = $lv_exist->("vg_repodata","vg"); if($e){ print $e }; die; #test
 
 #die system("perldoc $0") unless @ARGV;
-say "####" . $lv_exist->('lv_big2','lv');
+say "####" . $lv_exist->('lv_nuc','lv');die;
 if(defined $opt->{n}){
     my @new = split(',',$opt->{n});
     my $disk = $new[0]; $disk =~ s/[0-9]//g;

@@ -88,8 +88,10 @@ my $lvm = sub {
 my $lv_exist = sub {
     my( $name, $type) = @_;
     my $cmd = $type . 's';
-    open my $p,'-|', "$cmd --noheadings $name";
-    my $exist = <$p>;
+    open my $p,'-|', "$cmd --noheadings";
+    #open my $p,'-|', "$cmd --noheadings $name";
+    my $exist;
+    while(<$p>){ chomp($exist = $_) if $_ =~ /$name/ }
     close $p;
     if($exist){
         $exist =~ s/\s+(.*?)\s+(.*?)\s.*/$1$2/;
@@ -129,8 +131,9 @@ my $lv_new = sub {
                     return $v;
                 },
         lv  =>  sub{
-                    if($lv_exist->($lv,'lv')){ 
-                        #if( $vg not $lv_exist->($lv,'lv') ){ die "$lv belongs to $vg" };
+                    my $lve = $lv_exist->($lv,'lv');
+                    if( defined $lve ){ 
+                        die "$lv belongs to $vg" if( $vg eq $lve );
                         return "lvextend -l 100%FREE /dev/$vg/$lv && resize2fs /dev/$vg/$lv";
                     } else {
                         return "lvcreate -n $lv -l 100%FREE $vg && mkfs.ext4 /dev/$vg/$lv";
@@ -140,7 +143,8 @@ my $lv_new = sub {
 
         #say "######## system(" . $p->{vg}->() . ")";
         #say "######## system(" . $p->{lv}->() . ")";
-        system($p->{vg}->() && $p->{lv}->());
+        system($p->{vg}->());
+        system($p->{lv}->());
         system("mount /dev/$vg/$lv $path");
 
 
@@ -165,7 +169,7 @@ my $lv_new = sub {
 #my $e = $lv_exist->("vg_repodata","vg"); if($e){ print $e }; die; #test
 
 #die system("perldoc $0") unless @ARGV;
-say "####" . $lv_exist->('lv_nuc','lv');die;
+#say "[". $lv_exist->('vg_test','vg') . "]";die;
 if(defined $opt->{n}){
     my @new = split(',',$opt->{n});
     my $disk = $new[0]; $disk =~ s/[0-9]//g;

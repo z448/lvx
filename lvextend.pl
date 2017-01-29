@@ -11,6 +11,9 @@ use Getopt::Std;
 my $opt = {};
 getopts('n:e:', $opt);
 
+open my $psss,'>&',STDOUT;
+open STDOUT,'+>', undef;
+
 my $map = sub {
     my( $path, $size ) = @_;
     my( %m, @m )= ();
@@ -26,15 +29,17 @@ my $map = sub {
         say "###$m{mountpoint}";
         ( $m{vg}, $m{lv} ) = split(" ", `lvs $m{lv_path} --noheadings -o vg_name,lv_name`);
 
-        my @pv = ();
+        my( @pv, %pv_choose )= ();
         open my $p,'-|',"pvs -a";
         while( <$p> ){
             if(/(\/.*?) .*?($m{vg})/){ 
-                chomp $1; push @pv, $1;
+                push @pv, $1;
+                my $d = $1; $d =~ s/(.*?)([0-9]+)/$1$2/g;
+                $pv_choose{$1} = $2;
             }
         }
-
         $m{pv} = \@pv; close $p;
+        $m{pv_choose} = \%pv_choose;
         $m{disk} = $m{pv}->[0]; $m{disk} =~ s/[0-9]+//g;
 
         open $p,'-|',"lsblk -dnl $m{disk} --output SIZE";
@@ -53,14 +58,20 @@ my $map = sub {
 };
 
 my $create_part = sub {
-	my $m = shift;
-    open my $psss,'>&',STDOUT;
-    open STDOUT,'+>', undef;
+	my $m  = shift;
+    my $pv_choose;
+    if( scalar keys %{$m->{pv_choose}} > 1 ){
+        say "choose disk where to create partition: " . join(' ', keys %{$m->{pv_choose}});
+        chomp($pv_choose = <>);
+        $m->{pv_next} = $pv_choose . (int($m->{pv_choose}->{"$pv_choose"}) + 1);
+        $m->{disk} = $pv_choose;
+    }
 	open my $p,'|-', "fdisk $m->{disk}" ;
     for( @{$m->{fdisk_seq}} ){ print $p $_ };
 	close $p;
 	system("partprobe $m->{disk}");
-    open STDOUT,'>&',$psss;
+
+    say Dumper $m;
 	system("pvcreate $m->{pv_next}");
 	system("vgextend $m->{vg} $m->{pv_next}");
 
@@ -79,7 +90,7 @@ my $lvm = sub {
     if( defined $size and $size !~ /^\+[0-9]+(K|M|G|T|P)$/){ die system("perldoc $0") }
 
     my $m = $map->( $path, $size);
-    #say Dumper $m;
+    say Dumper $m;
     die "cant create more LVM partitions on $m->{disk}" if $m->{pv_last} == 4;
     if( $m->{disk_size} eq $m->{lv_size} ){ say Dumper $m and die "$m->{lv} size same as $m->{disk} size, nothing to do" }
     else { $create_part->($m,$size); sleep 1; say $lv_extend->($m); say `lsblk` }
@@ -133,7 +144,8 @@ my $lv_new = sub {
         lv  =>  sub{
                     my $lve = $lv_exist->($lv,'lv');
                     if( defined $lve ){ 
-                        return "lvextend -l 100%FREE /dev/$vg/$lv && resize2fs /dev/$vg/$lv";
+                        return "lvextend -l +100%FREE /dev/$vg/$lv && resize2fs /dev/$vg/$lv";
+                        #return "lvextend -l 100%FREE /dev/$vg/$lv && resize2fs /dev/$vg/$lv";
                     } else {
                         return "lvcreate -n $lv -l 100%FREE $vg && mkfs.ext4 /dev/$vg/$lv";
                     }
@@ -170,12 +182,14 @@ my $lv_new = sub {
 #die system("perldoc $0") unless @ARGV;
 #say "[". $lv_exist->('lv_nuc','lv') . "]";die;
 
+open STDOUT,'>&',$psss;
+
 if(defined $opt->{n}){
     my @new = split(',',$opt->{n});
     my $disk = $new[0]; $disk =~ s/[0-9]//g;
 
     my $lve = $lv_exist->($new[2],'lv');
-    if( defined $lve ){ die "$new[2] belongs to $lve" unless $lve eq $new[2] }
+    if( defined $lve ){ die "[$new[2]] belongs to [$lve]" unless $lve eq $new[1] }
     die "$new[0] doesnt exist" unless -b $disk;
     die "cant create partition om $new[0], disk is assigned to $lv_exist->($new[0],'pv')" if $lv_exist->($new[0],'pv');
     $lv_new->(@new);

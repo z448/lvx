@@ -133,7 +133,6 @@ my $lv_new = sub {
         lv  =>  sub{
                     my $lve = $lv_exist->($lv,'lv');
                     if( defined $lve ){ 
-                        die "$lv belongs to $vg" if( $vg eq $lve );
                         return "lvextend -l 100%FREE /dev/$vg/$lv && resize2fs /dev/$vg/$lv";
                     } else {
                         return "lvcreate -n $lv -l 100%FREE $vg && mkfs.ext4 /dev/$vg/$lv";
@@ -169,10 +168,14 @@ my $lv_new = sub {
 #my $e = $lv_exist->("vg_repodata","vg"); if($e){ print $e }; die; #test
 
 #die system("perldoc $0") unless @ARGV;
-#say "[". $lv_exist->('vg_test','vg') . "]";die;
+#say "[". $lv_exist->('lv_nuc','lv') . "]";die;
+
 if(defined $opt->{n}){
     my @new = split(',',$opt->{n});
     my $disk = $new[0]; $disk =~ s/[0-9]//g;
+
+    my $lve = $lv_exist->($new[2],'lv');
+    if( defined $lve ){ die "$new[2] belongs to $lve" unless $lve eq $new[2] }
     die "$new[0] doesnt exist" unless -b $disk;
     die "cant create partition om $new[0], disk is assigned to $lv_exist->($new[0],'pv')" if $lv_exist->($new[0],'pv');
     $lv_new->(@new);

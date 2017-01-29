@@ -87,7 +87,8 @@ my $lv_new = sub {
 
     # create partition if $disk ends with number
     my $fdisk = sub {
-        my $disk = shift;
+        my $part = shift;
+        my $disk = $part; $disk =~ s/[0-9]//g;
         my $fdisk_seq = ["n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n"]; 
         $fdisk_seq->[4] = "$size\n" if defined $size;
         open my $p,'|-', "fdisk $disk" ;
@@ -108,7 +109,7 @@ my $lv_new = sub {
 die system("perldoc $0") unless @ARGV;
 
 if($ARGV[0] eq 'test'){
-    $lv_new->('/dev/sdb','vg_repodata','lv_big','/big','+300M');
+    $lv_new->('/dev/sdd','vg_repodata2','lv_big2','/big','+200M');
     my $m = $map->('/big');
     delete $m->{fdisk_seq};
     delete $m->{pv_next};

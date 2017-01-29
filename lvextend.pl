@@ -6,6 +6,10 @@ use strict;
 
 use Data::Dumper;
 use File::Path qw( mkpath );
+use Getopt::Std;
+
+my $opt = {};
+getopts('n:e:', $opt);
 
 my $map = sub {
     my( $path, $size ) = @_;
@@ -72,7 +76,7 @@ my $lvm = sub {
     die if $dfh !~ /$path/;
     if( defined $size and $size !~ /^\+[0-9]+(K|M|G|T|P)$/){ die system("perldoc $0") }
 
-    my $m = $map->($path, $size);
+    my $m = $map->( $path, $size);
     #say Dumper $m;
     die "cant create more LVM partitions on $m->{disk}" if $m->{pv_last} == 4;
     if( $m->{disk_size} eq $m->{lv_size} ){ say Dumper $m and die "$m->{lv} size same as $m->{disk} size, nothing to do" }
@@ -86,13 +90,12 @@ my $lv_exist = sub {
     my $exist = <$p>;
     if($exist){
         $exist =~ s/\s+(.*?)\s+(.*?)\s.*/$1$2/;
-        return $2;
+        return $2 if $1 eq $name;
     }
 };
 
 my $lv_new = sub {
     my($disk, $vg, $lv, $path, $size) = @_;
-    #my $part = $disk . '1';
 
     mkpath($path) unless -d $path;
 
@@ -117,7 +120,6 @@ my $lv_new = sub {
     
     system("vgcreate $vg $disk");
     system("lvcreate -n $lv -l 100%FREE $vg");
-    system("lvcreate -n $lv -l 100%FREE $vg");
     system("mkfs.ext4 /dev/$vg/$lv");
     system("mount /dev/$vg/$lv $path");
 };
@@ -125,18 +127,20 @@ my $lv_new = sub {
 
 #my $e = $lv_exist->("vg_repodata","vg"); if($e){ print $e }; die; #test
 
-die system("perldoc $0") unless @ARGV;
+#die system("perldoc $0") unless @ARGV;
 
-if($ARGV[0] eq 'test'){
-    $lv_new->('/dev/sdd','vg_repodata','lv_big','/big','+700M');
+if(defined $opt->{n}){
+    my @new = split(',',$opt->{n});
+    my $disk = $new[0]; $disk =~ s/[0-9]//g;
+    die "$new[0] doesnt exist" unless -b $disk;
+    die "cant create partition om $new[0], disk is assigned to $lv_exist->($new[0],'pv')" if $lv_exist->($new[0],'pv');
+    $lv_new->(@new);
     my $m = $map->('/big');
-    delete $m->{fdisk_seq};
-    delete $m->{pv_next};
-    delete $m->{pv_last};
     say Dumper $m;
     die;
-} else {
-    $lvm->(@ARGV);
+} elsif(defined $opt->{e}) {
+    my @extend = split(',',$opt->{e});
+    $lvm->(@extend);
 }
 
 

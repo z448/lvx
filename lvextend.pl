@@ -22,6 +22,8 @@ my $map = sub {
     while(<$fh>){
         chomp; next if $_ =~ /Filesystem/;
         ( $m{lv_path}, $m{size}, $m{used}, $m{avail}, $m{used_perc}, $m{mountpoint})  = split(/\s+/, $_);
+        %m = () and next unless $m{mountpoint} eq $path;
+        say "###$m{mountpoint}";
         ( $m{vg}, $m{lv} ) = split(" ", `lvs $m{lv_path} --noheadings -o vg_name,lv_name`);
 
         my @pv = ();
@@ -110,25 +112,53 @@ my $lv_new = sub {
         close $p;
         system("partprobe $disk");
     };
-    say "fdisk:". $fdisk->($disk) if $disk =~ /[0-9]$/;
+    $fdisk->($disk) if $disk =~ /[0-9]$/;
 
-	system("pvcreate $disk");
+    system("pvcreate $disk");
 
-    #system("vgextend $vg $disk");
-    #system("lvextend -L $size /dev/$vg/$lv");
-    #system("resize2fs /dev/$vg/$lv");
-    
-    system("vgcreate $vg $disk");
-    system("lvcreate -n $lv -l 100%FREE $vg");
-    system("mkfs.ext4 /dev/$vg/$lv");
-    system("mount /dev/$vg/$lv $path");
+    my $p = {
+        vg  =>  sub{ 
+                my $v = "vgextend $vg $disk";
+                $v = "vgcreate $vg $disk" unless $lv_exist->($vg,'vg');
+                return $v;
+            },
+        lv  =>  sub{
+                my $l = "lvresize -l 100%VG /dev/$vg/$lv && resize2fs /dev/$vg/$lv";
+                
+                #my $l = "lvextend -L $size /dev/$vg/$lv && resize2fs /dev/$vg/$lv";
+                $l = "lvcreate -n $lv -L $size $vg && mkfs.ext4 /dev/$vg/$lv" unless $lv_exist->($lv,'lv');
+                return $l;
+            },
+        };
+
+        #say "system(" . $p->{vg}->() . ")";
+        system($p->{vg}->());
+        system($p->{lv}->());
+        system("mount /dev/$vg/$lv $path");
+
+
+                    
+                        
+=head1
+        if( $lv_exist->($vg,'vg') ){ 
+            system("vgextend $vg $disk")
+            system("lvextend -L $size /dev/$vg/$lv");
+        system("resize2fs /dev/$vg/$lv");
+        
+        system("vgcreate $vg $disk");
+        system("lvcreate -n $lv -l 100%FREE $vg");
+        system("mkfs.ext4 /dev/$vg/$lv");
+=cut
+
+
+
 };
 
 
 #my $e = $lv_exist->("vg_repodata","vg"); if($e){ print $e }; die; #test
 
 #die system("perldoc $0") unless @ARGV;
-
+say "####" . $lv_exist->('lv_big2','lv');
 if(defined $opt->{n}){
     my @new = split(',',$opt->{n});
     my $disk = $new[0]; $disk =~ s/[0-9]//g;
@@ -140,6 +170,7 @@ if(defined $opt->{n}){
     die;
 } elsif(defined $opt->{e}) {
     my @extend = split(',',$opt->{e});
+    die "cant create partition om $extend[0], disk is assigned to $lv_exist->($extend[0],'pv')" if $lv_exist->($extend[0],'pv');
     $lvm->(@extend);
 }
 

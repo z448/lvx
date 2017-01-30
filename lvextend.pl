@@ -36,6 +36,7 @@ my $map = sub {
                 push @pv, $pv;
                 $pv =~ s/(.*?)([0-9]+)/$1$2/;
                 $pv_choose{"$1"} = $2 if $lv eq $m{lv} }
+            #$pv_choose{"$1"} = $2 if $lv eq $m{lv} }
         }
         
 =head1
@@ -59,7 +60,8 @@ my $map = sub {
         open $p,'-|',"lsblk -dnl $m{lv_path} --output SIZE";
         chomp( $m{lv_size} = <$p> ); close $p;
 
-        $m{pv_next} = $m{disk} . ($#pv + 2);
+        $m{pv_next} = $m{disk} . ($pv_choose{"$m{disk}"} + 1);
+        #$m{pv_next} = $m{disk} . ($#pv + 2);
         $m{pv_last} = $#pv + 1;
                                           #--
         $m{fdisk_seq} = ["n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n"]; 

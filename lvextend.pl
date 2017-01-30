@@ -62,8 +62,20 @@ my $create_part = sub {
     if( scalar keys %{$m->{pv_choose}} > 1 ){
         say "choose disk where to create partition: " . join(' ', keys %{$m->{pv_choose}});
         chomp($pv_choose = <>);
-        $m->{pv_next} = $pv_choose . (int($m->{pv_choose}->{"$pv_choose"}) + 1);
-        $m->{disk} = $pv_choose;
+        #if($pv_choose =~ /\//){ $pv_choose =~ s/.*\/// }
+
+        open my $p,'-|',"find /dev/|grep $pv_choose";
+        while(<$p>){
+            chomp($m->{pv_next} = $_) and last;
+        }
+        close $p;
+
+        $pv_choose = s/(.*?)([0-9]+)/$1$2/;
+        say "\$1:$1 \$2:$2";
+        $m->{disk} = $1;
+        $m->{pv_next} = $2 + 1; $m->{pv_next} = $m->{disk} . $m->{pv_next};
+        #$m->{disk} = $m->{pv_choose}; $m->{disk} =~ s/[0-9]+//g;
+        #$m->{pv_next} = $pv_choose . (int($m->{pv_choose}->{"$pv_choose"}) + 1);
     }
 	open my $p,'|-', "fdisk $m->{disk}" ;
     for( @{$m->{fdisk_seq}} ){ print $p $_ };

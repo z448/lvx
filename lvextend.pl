@@ -29,6 +29,17 @@ my $map = sub {
         ( $m{vg}, $m{lv} ) = split(" ", `lvs $m{lv_path} --noheadings -o vg_name,lv_name`);
 
         my( @pv, %pv_choose )= ();
+        open my $p,"-|","pvs -o pv_name,lv_name,vg_name";
+        while(<$p>){
+            my ($pv,$lv,$vg) = split(" ", $_);
+            if( $vg eq $m{vg} ){ 
+                push @pv, $pv;
+                $pv =~ s/(.*?)([0-9]+)/$1$2/;
+                $pv_choose{"$1"} = $2 if $lv eq $m{lv} }
+        }
+        
+=head1
+        
         open my $p,'-|',"pvs -a";
         while( <$p> ){
             if(/(\/.*?) .*?($m{vg})/){ 
@@ -37,6 +48,7 @@ my $map = sub {
                 $pv_choose{$1} = $2;
             }
         }
+=cut
         $m{pv} = \@pv; close $p;
         $m{pv_choose} = \%pv_choose;
         $m{disk} = $m{pv}->[0]; $m{disk} =~ s/[0-9]+//g;

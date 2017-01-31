@@ -64,28 +64,36 @@ my $map = sub {
         $m{pv_next} = $m{disk} . ($pv_choose{"$m{disk}"} + 1);
         #$m{pv_next} = $m{disk} . ($#pv + 2);
         $m{pv_last} = $#pv + 1;
-                                          #--
-        $m{fdisk_seq} = ["n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n"]; 
+        
+        #primary# n \n \n \n $size 
+         
+        #extended# n e \n \n \n #logical# n \n $size t \n 8e w
+                    
+
+        #$m{fdisk_seq} = ["n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n"]; 
+        $m{fdisk_seq} = ["n\n","\n","\n","t\n","\n","8e\n","w\n"]; 
+        $m{fdisk_seq}->[2] = "$size\n" if defined $size;
         #$m{fdisk_seq} = ["n\n","e\n","\n","\n","\n","n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n"]; 
         #$m{fdisk_seq} = ["n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n"]; 
         # $m{fdisk_seq}->[4] = "$size\n" if defined $size;
         open $p,'-|', "fdisk -l $m{disk}";
         while(<$p>){
+            chomp;
             $m{part_extended} = 1 if $_ =~ / Extended$/;
-            if( /\/dev\// ){ 
-                s/ +?(\/.*?\d+)\ .*/$1/;
-                $m{check_pv_next} = $1;
-            }
-            #chomp( $m{check_pv_next} = <$p> );
-            close $p;
+            say "###### $m{part_extended}";#test
+            $m{check_pv_next} = $1 if $_ =~ /(^\/.*?[0-9]+) /;
+            say "###### $m{check_pv_next}";
         }
+        close $p;
+            
+                #s/(^\/.*?[0-9]+).*/$1/;
+            #chomp( $m{check_pv_next} = <$p> );
 
+        unshift(@{$m{fdisk_seq}}, "n\n","e\n","\n","\n","\n") unless $m{part_extended};
         #if(defined $size){ 
-        $m{fdisk_seq}->[4] = "$size\n" if defined $size;
             #if( $m{part_extended} ){ 
                 #$m{fdisk_seq}->[1] = "l\n";
                 #} else { 
-        unshift(@{$m{fdisk_seq}}, "n\n","e\n","\n","\n","\n") unless $m{part_extended};
                 #$m{fdisk_seq}->[4] = "$size\n" if defined $size;
                 #}
             #}
@@ -97,6 +105,7 @@ my $map = sub {
     print"\$map:"; say Dumper \%m;
     
     return \%m;
+    die;
 };
 
 my $lv_create = sub {

@@ -71,28 +71,31 @@ my $map = sub {
         # $m{fdisk_seq}->[4] = "$size\n" if defined $size;
         open $p,'-|', "fdisk -l $m{disk}";
         while(<$p>){
-            $m{part_extended} = 1 if $_ =~ /Extended/;
-            s/(\/.*?)\ .*/$1/ if $_ =~ /^\//;
-            $m{check_pv_next} = $1;
+            $m{part_extended} = 1 if $_ =~ / Extended$/;
+            if( /\/dev\// ){ 
+                s/ +?(\/.*?\d+)\ .*/$1/;
+                $m{check_pv_next} = $1;
+            }
             #chomp( $m{check_pv_next} = <$p> );
             close $p;
         }
 
-        if(defined $size){ 
-            $m{fdisk_seq}->[4] = "$size\n"; 
-            unless( defined $m{part_extended} ){ 
-                unshift(@{$m{fdisk_seq}}, "n\n","e\n","\n","\n","\n");
-                $m{fdisk_seq}->[4] = "$size\n";
-            } else { 
-                $m{fdisk_seq}->[1] = "l\n";
-            }
-                
-
-        }
+        #if(defined $size){ 
+        $m{fdisk_seq}->[4] = "$size\n" if defined $size;
+            #if( $m{part_extended} ){ 
+                #$m{fdisk_seq}->[1] = "l\n";
+                #} else { 
+        unshift(@{$m{fdisk_seq}}, "n\n","e\n","\n","\n","\n") unless $m{part_extended};
+                #$m{fdisk_seq}->[4] = "$size\n" if defined $size;
+                #}
+            #}
 
         #open $p,'-|', "fdisk -l $m{disk} |tail -1 |cut -d' ' -f1";
 
     }
+
+    print"\$map:"; say Dumper \%m;
+    
     return \%m;
 };
 
@@ -139,8 +142,6 @@ my $create_part = sub {
 	close $p;
 	system("partprobe $m->{disk}");
 
-    say Dumper $m;
-
 	open $p,'-|', "fdisk -l $m->{disk} |tail -1 |cut -d' ' -f1";
     chomp( $m->{pv_next} = <$p> );
     close $p;
@@ -148,6 +149,8 @@ my $create_part = sub {
     die "fdisk didn't create partition" if $m->{pv_next} eq $m->{check_pv_next};
 
     $lv_create->($m);
+    print Dumper $m;
+
 
     #system("pvcreate $m->{pv_next}");
     #system("vgextend $m->{vg} $m->{pv_next}");
@@ -169,8 +172,9 @@ my $lvm = sub {
     my $m = $map->( $path, $size);
     say Dumper $m;
     #die "cant create more LVM partitions on $m->{disk}" if $m->{pv_last} == 4; 
-    if( $m->{disk_size} eq $m->{lv_size} ){ say Dumper $m and die "$m->{lv} size same as $m->{disk} size, nothing to do" }
-    else { $create_part->($m,$size); sleep 1; say $lv_extend->($m); say `lsblk` }
+    if( $m->{disk_size} eq $m->{lv_size} ){ die "$m->{lv} size same as $m->{disk} size, nothing to do" }
+    else { $create_part->($m,$size); sleep 1; say $lv_extend->($m) }
+    return $m;
 };
 
 my $lv_exist = sub {
@@ -232,6 +236,7 @@ my $lv_new = sub {
         system($p->{lv}->());
         system("mount /dev/$vg/$lv $path");
 
+        #say Dumper $m;
 #open STDOUT,'>&',$psss;
 };
 
@@ -247,14 +252,21 @@ if(defined $opt->{n}){
     if( defined $lve ){ die "[$new[2]] belongs to [$lve]" unless $lve eq $new[1] }
     die "$new[0] doesnt exist" unless -b $disk;
     die "cant create partition om $new[0], disk is assigned to $lv_exist->($new[0],'pv')" if $lv_exist->($new[0],'pv');
+
     $lv_new->(@new);
-    my $m = $map->('/big');
-    say Dumper $m;
-    die;
+    #my $m = $map->('/big');
+
+    say `lsblk`;
+
 } elsif(defined $opt->{e}) {
     my @extend = split(',',$opt->{e});
     die "cant create partition om $extend[0], disk is assigned to $lv_exist->($extend[0],'pv')" if $lv_exist->($extend[0],'pv');
-    $lvm->(@extend);
+
+    my $m = $lvm->(@extend);
+    $lv_extend->($m);
+
+    say Dumper $m;
+    say `lsblk`;
 }
 
 

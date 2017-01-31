@@ -151,11 +151,11 @@ my $create_part = sub {
 	close $p;
 	system("partprobe $m->{disk}");
 
-	open $p,'-|', "fdisk -l $m->{disk} |tail -1 |cut -d' ' -f1";
-    chomp( $m->{pv_next} = <$p> );
-    close $p;
+    #open $p,'-|', "fdisk -l $m->{disk} |tail -1 |cut -d' ' -f1";
+    #chomp( $m->{pv_next} = <$p> );
+    #close $p;
 
-    die "fdisk didn't create partition" if $m->{pv_next} eq $m->{check_pv_next};
+    #die "fdisk didn't create partition" if $m->{pv_next} eq $m->{check_pv_next};
 
     $lv_create->($m);
     print Dumper $m;
@@ -205,30 +205,44 @@ my $lv_new = sub {
 
 #open my $psss,'>&',STDOUT;
 #open STDOUT,'+>', undef;
+
+        #$pv_choose = s/(.*?)([0-9]+)/$1$2/;
+        #say "\$1:$1 \$2:$2";
+        #$m->{disk} = $1;
+        #$m->{pv_next} = $2 + 1; $m->{pv_next} = $m->{disk} . $m->{pv_next};
+
     mkpath($path) unless -d $path;
 
     my $fdisk = sub {
-        my $part = shift;
-        my $disk = $part; $disk =~ s/[0-9]//g;
-        my $fdisk_seq = ["n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n"]; 
-        $fdisk_seq->[4] = "$size\n" if defined $size;
+        my $disk = shift; 
+
+        my $fdisk_seq = ["n\n","e\n","\n","\n","\n","n\n","\n","\n","t\n","\n","8e\n","w\n"];
+        $fdisk_seq->[7] = "$size\n" if defined $size;
+
         open my $p,'|-', "fdisk $disk" ;
         for( @{$fdisk_seq} ){ print $p $_ };
         close $p;
+
         system("partprobe $disk");
     };
 
-    if( $disk =~ /[0-9]$/ ){ $ch = $fdisk->($disk) } else { die "need partition not disk" }
-    say "fdisk status:" . $ch;
+    $fdisk->($disk);
+    #if( $disk =~ /[0-9]$/ ){ $ch = $fdisk->($disk) } else { die "need partition not disk" }
 
-    $ch = system("pvcreate $disk") unless $lv_exist->($disk,'pv');
-    say "pvcreate status:" . $ch;
+        my $disk = shift;
+        open my $p,'-|',"find /dev/|grep $disk";
+        chomp(my $part = <$p>);
+        say "##" . $part;
+        close $p;
+        system("pvcreate $part");
 
+
+    #$ch = system("pvcreate $disk") unless $lv_exist->($disk,'pv');
 
     my $p = {
         vg  =>  sub{ 
-                    my $v = "vgextend $vg $disk" if $lv_exist->($vg,'vg');
-                    $v = "vgcreate $vg $disk" unless $lv_exist->($vg,'vg');
+                    my $v = "vgextend $vg $part" if $lv_exist->($vg,'vg');
+                    $v = "vgcreate $vg $part" unless $lv_exist->($vg,'vg');
                     return $v;
                 },
         lv  =>  sub{

@@ -71,9 +71,9 @@ my $map = sub {
         # $m{fdisk_seq}->[4] = "$size\n" if defined $size;
         open $p,'-|', "fdisk -l $m{disk}";
         while(<$p>){
-            $m{part_extended} = 1 if $_ =~ /\ Extended/;
+            $m{part_extended} = 1 if $_ =~ /Extended/;
             s/(\/.*?)\ .*/$1/ if $_ =~ /^\//;
-            $m{check_pv_next} = $_;
+            $m{check_pv_next} = $1;
             #chomp( $m{check_pv_next} = <$p> );
             close $p;
         }
@@ -82,8 +82,12 @@ my $map = sub {
             $m{fdisk_seq}->[4] = "$size\n"; 
             unless( defined $m{part_extended} ){ 
                 unshift(@{$m{fdisk_seq}}, "n\n","e\n","\n","\n","\n");
-                $m{fdisk_seq}->[8] = "$size\n";
+                $m{fdisk_seq}->[4] = "$size\n";
+            } else { 
+                $m{fdisk_seq}->[1] = "l\n";
             }
+                
+
         }
 
         #open $p,'-|', "fdisk -l $m{disk} |tail -1 |cut -d' ' -f1";

@@ -103,6 +103,16 @@ perl -E 'if(`which setxkbmap`){ `setxkbmap -option \"caps:ctrl_modifier\"`}'
 # + also remap CAPS_LOCK to ESC on linux (usefull in vim)
 #perl -E 'if(`which xcape`){ `xcape -e \"Caps_Lock=Escape\"`}'
 
+# p alias for perl one-liners
+alias p="cd ~ && perl -E '\
+use 5.010;
+use warnings;
+use strict;
+
+use Data::Dumper;
+use JSON::PP;
+"
+
 # mount HFS+ external disk
 # apt-get install hfsprogs
 # mount -t hfsplus -o force,rw /dev/sdb3 /1T

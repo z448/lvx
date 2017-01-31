@@ -65,19 +65,29 @@ my $map = sub {
         #$m{pv_next} = $m{disk} . ($#pv + 2);
         $m{pv_last} = $#pv + 1;
                                           #--
-        $m{fdisk_seq} = ["n\n","e\n","\n","\n","\n","n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n"]; 
+        $m{fdisk_seq} = ["n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n"]; 
+        #$m{fdisk_seq} = ["n\n","e\n","\n","\n","\n","n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n"]; 
         #$m{fdisk_seq} = ["n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n"]; 
         # $m{fdisk_seq}->[4] = "$size\n" if defined $size;
-        if(defined $size){ 
-            $m{fdisk_seq}->[4] = "$size\n"; 
-            $m{fdisk_seq}->[8] = "$size\n";
+        open $p,'-|', "fdisk -l $m{disk}";
+        while(<$p>){
+            $m{part_extended} = 1 if $_ =~ /\ Extended/;
+            s/(\/.*?)\ .*/$1/ if $_ =~ /^\//;
+            $m{check_pv_next} = $_;
+            #chomp( $m{check_pv_next} = <$p> );
+            close $p;
         }
 
-        open $p,'-|', "fdisk -l $m{disk} |tail -1 |cut -d' ' -f1";
-        chomp( $m{check_pv_next} = <$p> );
-        close $p;
+        if(defined $size){ 
+            $m{fdisk_seq}->[4] = "$size\n"; 
+            unless( defined $m{part_extended} ){ 
+                unshift(@{$m{fdisk_seq}}, "n\n","e\n","\n","\n","\n");
+                $m{fdisk_seq}->[8] = "$size\n";
+            }
+        }
 
-        #unshift( @{$m{fdisk_seq}}, "n\n","e\n","\n","\n","$size\n" );
+        #open $p,'-|', "fdisk -l $m{disk} |tail -1 |cut -d' ' -f1";
+
     }
     return \%m;
 };

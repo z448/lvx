@@ -93,11 +93,13 @@ my $create_part = sub {
         #$m->{pv_next} = $pv_choose . (int($m->{pv_choose}->{"$pv_choose"}) + 1);
     }
 
-	open my $p,'|-', "fdisk $m->{disk}" ;
+	open my $p,'-|', "fdisk -l $m->{disk} |tail -1 |cut -d' ' -f1";
+    chomp( $m->{check_pv_next} = <$p> );
+    close $p;
+
+	open $p,'|-', "fdisk $m->{disk}" ;
     for( @{$m->{fdisk_seq}} ){ my $s = print $p $_; say "status:".$s };
 	close $p;
-    say "########";
-    die;
 	system("partprobe $m->{disk}");
 
     say Dumper $m;
@@ -105,6 +107,8 @@ my $create_part = sub {
 	open $p,'-|', "fdisk -l $m->{disk} |tail -1 |cut -d' ' -f1";
     chomp( $m->{pv_next} = <$p> );
     close $p;
+
+    die "fdisk didn't create partition" if $m->{pv_next} eq $m->{check_pv_next};
 
 	system("pvcreate $m->{pv_next}");
 	system("vgextend $m->{vg} $m->{pv_next}");

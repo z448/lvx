@@ -264,7 +264,8 @@ if doesnt work
 - remove PV (vgreduce --removemissing --force vg_repodata)
 
 ----
-extend disk in vm to 7G
+extend existing disk in vm to 7G and reboot OR add new disk in vm and to see changes in host do (for i in `ls -tr  /sys/class/scsi_host/`;do echo "- - -" > /sys/class/scsi_host/$i/scan;done) 
+
 
 sdc                      8:16   0    7G  0 disk
 └─sdc1                   8:17   0    5G  0 part

@@ -65,10 +65,27 @@ my $map = sub {
         #$m{pv_next} = $m{disk} . ($#pv + 2);
         $m{pv_last} = $#pv + 1;
                                           #--
-        $m{fdisk_seq} = ["n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n"]; 
-        $m{fdisk_seq}->[4] = "$size\n" if defined $size;
+        $m{fdisk_seq} = ["n\n","e\n","\n","\n","\n","n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n"]; 
+        #$m{fdisk_seq} = ["n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n"]; 
+        # $m{fdisk_seq}->[4] = "$size\n" if defined $size;
+        if(defined $size){ 
+            $m{fdisk_seq}->[4] = "$size\n"; 
+            $m{fdisk_seq}->[8] = "$size\n";
+        }
+
+        open $p,'-|', "fdisk -l $m{disk} |tail -1 |cut -d' ' -f1";
+        chomp( $m{check_pv_next} = <$p> );
+        close $p;
+
+        #unshift( @{$m{fdisk_seq}}, "n\n","e\n","\n","\n","$size\n" );
     }
     return \%m;
+};
+
+my $lv_create = sub {
+    my $m = shift;
+	system("pvcreate $m->{pv_next}");
+	system("vgextend $m->{vg} $m->{pv_next}");
 };
 
 my $create_part = sub {
@@ -92,12 +109,18 @@ my $create_part = sub {
         #$m->{disk} = $m->{pv_choose}; $m->{disk} =~ s/[0-9]+//g;
         #$m->{pv_next} = $pv_choose . (int($m->{pv_choose}->{"$pv_choose"}) + 1);
     }
-
-	open my $p,'-|', "fdisk -l $m->{disk} |tail -1 |cut -d' ' -f1";
-    chomp( $m->{check_pv_next} = <$p> );
+=head1
+	open my $p,'-|', "fdisk -l $m->{disk}";
+    while(<$p>){
+        $m->{part_extended} = 1 if $_ =~ /Extended$/;
+        chomp( $m->{check_pv_next} = $_);
+    }
+    #open my $p,'-|', "fdisk -l $m->{disk} |tail -1 |cut -d' ' -f1";
+    #chomp( $m->{check_pv_next} = <$p> );
     close $p;
 
-	open $p,'|-', "fdisk $m->{disk}" ;
+=cut
+	open my $p,'|-', "fdisk $m->{disk}" ;
     for( @{$m->{fdisk_seq}} ){ my $s = print $p $_; say "status:".$s };
 	close $p;
 	system("partprobe $m->{disk}");
@@ -110,8 +133,10 @@ my $create_part = sub {
 
     die "fdisk didn't create partition" if $m->{pv_next} eq $m->{check_pv_next};
 
-	system("pvcreate $m->{pv_next}");
-	system("vgextend $m->{vg} $m->{pv_next}");
+    $lv_create->($m);
+
+    #system("pvcreate $m->{pv_next}");
+    #system("vgextend $m->{vg} $m->{pv_next}");
 
 };
 

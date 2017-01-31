@@ -259,7 +259,14 @@ my $lv_new = sub {
         system($p->{lv}->());
         system("mount /dev/$vg/$lv $path");
 
-        #say Dumper $m;
+        #TODO: for expand
+        #  487  pvcreate /dev/sdh4
+        #    488  lsblk
+        #      489  vgextend vg_z6 /dev/sdh4
+        #        490  lvextend -l +100%FREE /dev/vg_z6 && resize2fs /dev/vg_z6/lv_nuc6
+        #          491  lvextend -l +100%FREE /dev/vg_z6/lv_nuc6 && resize2fs /dev/vg_z6/lv_nuc6
+        #
+        #
 #open STDOUT,'>&',$psss;
 };
 

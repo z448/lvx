@@ -101,7 +101,7 @@ bind '"\C-g":"cd ~/Documents/dpp/App-dpp-1.0 && pwd\n"';
 perl -E 'if(`which setxkbmap`){ `setxkbmap -option \"caps:ctrl_modifier\"`}'
 
 # + also remap CAPS_LOCK to ESC on linux (usefull in vim)
-perl -E 'if(`which xcape`){ `xcape -e \"Caps_Lock=Escape\"`}'
+#perl -E 'if(`which xcape`){ `xcape -e \"Caps_Lock=Escape\"`}'
 
 # mount HFS+ external disk
 # apt-get install hfsprogs

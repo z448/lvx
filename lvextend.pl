@@ -114,6 +114,46 @@ my $lv_create = sub {
 	system("vgextend $m->{vg} $m->{pv_next}");
 };
 
+my $fdisk = sub {
+    my( $disk, $size ) = @_;
+
+
+};
+
+my $part = sub {
+    my( $disk,$size )  = @_;
+
+    my( %p, @p ) = ();
+    my %d = ( path => "/dev/$disk", part => \%p );
+    
+    if(`find /dev/|grep $disk`){
+        open my $p,'-|',"fdisk -l /dev/$disk";
+        while(<$p>){ 
+            chomp; next unless $_ =~ /^\/dev\//;
+            $d{extended} = 1 if $_ eq 'Extended';
+            if(/(^.*?)([0-9]+)\ .*/){ $p{$1} = $2 }
+            push @p, {%p};
+        }
+    }
+
+    return \%d unless defined $size;;
+    return sub {
+        my $fseq = ["n\n","\n","\n","t\n","\n","8e\n","w\n"]; 
+        $fseq->[2] = "$size\n" if defined $size;
+        unshift(@$fseq, "n\n","e\n","\n","\n","\n") unless $d{extended};
+
+        open my $p,'|-', "fdisk $d{path}" ;
+        for( @$fseq ){ print $p $_ }; close $p;
+        system("partprobe $d{path}");
+        return $fseq;
+    };
+};
+
+#my $p = $part->('sdg','+1G');
+#say Dumper $p->();
+#say Dumper $part->('sdg');
+#die;
+
 my $create_part = sub {
 	my $m  = shift;
     my $pv_choose;
@@ -229,7 +269,7 @@ my $lv_new = sub {
     $fdisk->($disk);
     #if( $disk =~ /[0-9]$/ ){ $ch = $fdisk->($disk) } else { die "need partition not disk" }
 
-        my $disk = shift;
+    #my $disk = shift;
         open my $p,'-|',"find /dev/|grep $disk";
         chomp(my $part = <$p>);
         say "##" . $part;
@@ -239,7 +279,7 @@ my $lv_new = sub {
 
     #$ch = system("pvcreate $disk") unless $lv_exist->($disk,'pv');
 
-    my $p = {
+    my $lvm = {
         vg  =>  sub{ 
                     my $v = "vgextend $vg $part" if $lv_exist->($vg,'vg');
                     $v = "vgcreate $vg $part" unless $lv_exist->($vg,'vg');
@@ -255,8 +295,8 @@ my $lv_new = sub {
                 },
         };
 
-        system($p->{vg}->());
-        system($p->{lv}->());
+        system($lvm->{vg}->());
+        system($lvm->{lv}->());
         system("mount /dev/$vg/$lv $path");
 
         #TODO: for expand

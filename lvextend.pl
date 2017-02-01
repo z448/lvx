@@ -121,23 +121,33 @@ my $fdisk = sub {
 };
 
 my $part = sub {
-    my( $disk,$size )  = @_;
+    my $disk = shift;
 
-    my( %p, @p ) = ();
-    my %d = ( path => "/dev/$disk", part => \%p );
+    my( %p, @p, %seen ) = ();
+    my %d = ( path => "/dev/$disk", part => \@p );
     
-    if(`find /dev/|grep $disk`){
+    if(-b $d{path}){
         open my $p,'-|',"fdisk -l /dev/$disk";
         while(<$p>){ 
             chomp; next unless $_ =~ /^\/dev\//;
             $d{extended} = 1 if $_ eq 'Extended';
-            if(/(^.*?)([0-9]+)\ .*/){ $p{$1} = $2 }
-            push @p, {%p};
-        }
+            if(/(^.*?)([0-9]+)\ .*/){ 
+                $seen{"$1$2"} = $2;
+                push @p, "$1$2";
+            }
+        }; close $p;
+
+        open $p,'-|',"find /dev/|grep $disk";
+        while(<$p>){ chomp; push @p, $_ unless exists $seen{$_} }
+        close $p;
     }
 
-    return \%d unless defined $size;;
+    return \%d; 
+    # if $d{part} /$d{path}/ } @ = make new
+    # if $d{part}
+
     return sub {
+        my $size = shift;
         my $fseq = ["n\n","\n","\n","t\n","\n","8e\n","w\n"]; 
         $fseq->[2] = "$size\n" if defined $size;
         unshift(@$fseq, "n\n","e\n","\n","\n","\n") unless $d{extended};
@@ -149,9 +159,9 @@ my $part = sub {
     };
 };
 
-#my $p = $part->('sdg','+1G');
-#say Dumper $p->();
-#say Dumper $part->('sdg');
+my $p = $part->('sdx');
+say Dumper $p;
+#say Dumper $part->('sdk');
 #die;
 
 my $create_part = sub {

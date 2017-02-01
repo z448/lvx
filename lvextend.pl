@@ -121,48 +121,54 @@ my $fdisk = sub {
 };
 
 my $part = sub {
-    my $disk = shift;
-
+    my( $disk,$size ) = @_;
     my( %p, @p, %seen ) = ();
-    my %d = ( path => "/dev/$disk", part => \@p );
-    
+    my %d = ( id => $disk, path => "/dev/$disk", part => \@p );
+
     if(-b $d{path}){
         open my $p,'-|',"fdisk -l /dev/$disk";
         while(<$p>){ 
             chomp; next unless $_ =~ /^\/dev\//;
-            $d{extended} = 1 if $_ eq 'Extended';
-            if(/(^.*?)([0-9]+)\ .*/){ 
-                $seen{"$1$2"} = $2;
-                push @p, "$1$2";
+            if(/(^.*?[0-9]+) .* (.*)$/){ 
+                $d{extended} = $1 if $2 eq "Extended";
+                $seen{$1} = $2;
+                push @p, $1; 
             }
-        }; close $p;
-
-        open $p,'-|',"find /dev/|grep $disk";
-        while(<$p>){ chomp; push @p, $_ unless exists $seen{$_} }
+        }; 
         close $p;
+
+        #    open $p,'-|',"find /dev/|grep $disk";
+        #while(<$p>){ 
+        #    chomp; next if $_ eq $d{path};
+        #    push @p, $_ unless exists $seen{$_};
+        #}
+        #close $p;
     }
-
-    return \%d; 
-    # if $d{part} /$d{path}/ } @ = make new
-    # if $d{part}
-
-    return sub {
-        my $size = shift;
-        my $fseq = ["n\n","\n","\n","t\n","\n","8e\n","w\n"]; 
-        $fseq->[2] = "$size\n" if defined $size;
-        unshift(@$fseq, "n\n","e\n","\n","\n","\n") unless $d{extended};
-
-        open my $p,'|-', "fdisk $d{path}" ;
-        for( @$fseq ){ print $p $_ }; close $p;
-        system("partprobe $d{path}");
-        return $fseq;
-    };
+    return \%d;
 };
 
-#my $p = $part->('sdx');
-#say Dumper $p;
-#say Dumper $part->('sdk');
-#die;
+my $part_create = sub {
+    my( $d, $size ) = @_;
+
+    my $fseq = ["n\n","\n","\n","t\n","\n","8e\n","w\n"]; 
+    $fseq->[2] = "$size\n" if defined $size;
+    unshift(@$fseq, "n\n","e\n","\n","\n","\n") unless $d->{extended};
+
+    open my $p,'|-', "fdisk $d->{path}" ;
+    for( @$fseq ){ print $p $_ }
+    close $p;
+    system("partprobe $d->{path}");
+
+    my %seen; @seen{ @{$d->{part}} } = ();
+    my @part = grep { ! exists $seen{$_} } @{$part->($d->{id})->{part}};
+    return \@part;
+};
+
+my $d = $part->('sdj');
+say Dumper $d;
+my $p = $part_create->($d);
+say Dumper $p;
+die;
 
 my $create_part = sub {
 	my $m  = shift;

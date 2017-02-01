@@ -159,8 +159,8 @@ my $part = sub {
     };
 };
 
-my $p = $part->('sdx');
-say Dumper $p;
+#my $p = $part->('sdx');
+#say Dumper $p;
 #say Dumper $part->('sdk');
 #die;
 

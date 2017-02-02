@@ -164,11 +164,12 @@ my $part_create = sub {
     return \@part;
 };
 
-my $d = $part->('sdj');
+#system('for i in `ls -tr  /sys/class/scsi_host/`;do echo "- - -" > /sys/class/scsi_host/$i/scan;done');
+my $d = $part->('sdd');
 say Dumper $d;
-my $p = $part_create->($d);
-say Dumper $p;
-die;
+#my $p = $part_create->($d,'+5G');
+#say Dumper $p;
+#die;
 
 my $create_part = sub {
 	my $m  = shift;
@@ -282,10 +283,10 @@ my $lv_new = sub {
         system("partprobe $disk");
     };
 
+    $disk =~ s/[0-9]+//g;
     $fdisk->($disk);
     #if( $disk =~ /[0-9]$/ ){ $ch = $fdisk->($disk) } else { die "need partition not disk" }
 
-    #my $disk = shift;
         open my $p,'-|',"find /dev/|grep $disk";
         chomp(my $part = <$p>);
         say "##" . $part;
@@ -325,6 +326,8 @@ my $lv_new = sub {
         #
 #open STDOUT,'>&',$psss;
 };
+
+
 
 unless( defined $opt->{n} or defined $opt->{e} ){ 
     die system("perldoc $0");

@@ -82,6 +82,9 @@ __DATA__
 # set vi mode on command line
 set -o vi
 
+# set vi as default editor
+export EDITOR=vi
+
 # vim will use custom config in $MYVIMRC
 export MYVIMRC=~/.vimrc
 

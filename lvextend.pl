@@ -79,7 +79,7 @@ my $map = sub {
         open $p,'-|', "fdisk -l $m{disk}";
         while(<$p>){
             chomp;
-            $m{part_extended} = 1 if $_ =~ / Extended$/;
+            $m{part_extended} = 1 if $_ =~ /\ Extended$/;
             say "###### $m{part_extended}";#test
             $m{check_pv_next} = $1 if $_ =~ /(^\/.*?[0-9]+) /;
             say "###### $m{check_pv_next}";

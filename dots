@@ -104,7 +104,7 @@ perl -E 'if(`which setxkbmap`){ `setxkbmap -option \"caps:ctrl_modifier\"`}'
 #perl -E 'if(`which xcape`){ `xcape -e \"Caps_Lock=Escape\"`}'
 
 # p alias for perl one-liners
-alias p="cd ~ && perl -E '\
+alias p="perl -E '\
 use 5.010;
 use warnings;
 use strict;

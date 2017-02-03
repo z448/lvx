@@ -150,26 +150,39 @@ my $part = sub {
 my $part_create = sub {
     my( $d, $size ) = @_;
 
-    my $fseq = ["n\n","\n","\n","t\n","\n","8e\n","w\n"]; 
-    $fseq->[2] = "$size\n" if defined $size;
+    my %seen; @seen{ @{$d->{part}} } = ();
+    my $fseq = ["n\n","\n","\n","\n","\n","w\n"];
+    #$fseq->[2] = "$size\n" if defined $size;
     unshift(@$fseq, "n\n","e\n","\n","\n","\n") unless $d->{extended};
 
-    open my $p,'|-', "fdisk $d->{path}" ;
-    for( @$fseq ){ print $p $_ }
-    close $p;
-    system("partprobe $d->{path}");
+    my $f = sub {
+        my( $seq,$d ) = @_;
+        open my $p,'|-', "fdisk $d->{path}" ;
+        for( @$seq ){ print $p $_ }; close $p;
+        my @part = grep { ! exists $seen{$_} } @{$part->($d->{id})->{part}};
+        return \@part;
+    };
+    my $new = $f->($fseq,$d);
+    say Dumper $new;
+    my $n = $new->[0];
+    $n =~ s/.*?([0-9]+)/$1/;
+    say "#new1" . $n;
+    $fseq = ["t\n","$n\n","8e\n","w\n"]; 
+    $new = $f->($fseq,$d);
+    say "#new2" . $new;
+    return $new;
 
-    my %seen; @seen{ @{$d->{part}} } = ();
-    my @part = grep { ! exists $seen{$_} } @{$part->($d->{id})->{part}};
-    return \@part;
+    #my $fseq = ["n\n","\n","\n","\n","\n","w\n"] ["t\n","\n","8e\n","w\n"]; 
+#    say Dumper $f->($seq);
+
 };
 
 #system('for i in `ls -tr  /sys/class/scsi_host/`;do echo "- - -" > /sys/class/scsi_host/$i/scan;done');
-my $d = $part->('sdd');
+my $d = $part->('sdf');
 say Dumper $d;
-#my $p = $part_create->($d,'+5G');
-#say Dumper $p;
-#die;
+my $p = $part_create->($d,'+5G');
+say $p;
+die;
 
 my $create_part = sub {
 	my $m  = shift;

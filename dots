@@ -79,6 +79,9 @@ $write->();
 __DATA__
 #TODO: alias/bind for apt-cache search, apt-get install ..
 
+# setup dots
+perl -E 'if(-f "$ENV{HOME}/Documents/perls/setup"){ system("$ENV{HOME}/Documents/perls/setup ~/local/bin'") }
+
 # set vi mode on command line
 set -o vi
 
@@ -97,7 +100,7 @@ export PATH=~/local/bin:$PATH
 export LC_ALL="en_US.UTF-8"
 
 # CTRL-P will switch me into ~/dpp dir; doesnt work when sourced from bashrc; must be added into ~/.bashrc file
-bind '"\C-p":"cd ~/dpp && pwd\n"';
+bind '"\C-p":"dclear $1"';
 bind '"\C-g":"cd ~/Documents/dpp/App-dpp-1.0 && pwd\n"';
 
 # remap CAPS_LOCK to CTRL on linux

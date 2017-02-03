@@ -4,10 +4,18 @@ use 5.010;
 use warnings;
 use strict;
 
-chomp(my $disk = <>);
-my $seq = ("d\n","\n","d\n","\n","d\n","\n","w\n");
-open my $p,"|-","fdisk /dev/$disk";
-print $p $_ for @seq;
-close $p;
-say `fdisk -l $disk`;
+my $fdisk = sub {
+    my $disk = shift;
+    die if $disk eq "sda";
+    my @seq = ("d\n","\n","d\n","\n","d\n","\n","w\n");
+    open my $p,"|-","fdisk /dev/$disk";
+    print $p $_ for @seq;
+    close $p;
+
+    system("partprobe /dev/$disk");
+    say '-----------';
+    say `lsblk`;
+};
+
+$fdisk->($ARGV[0]);
 

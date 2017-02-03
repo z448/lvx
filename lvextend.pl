@@ -169,33 +169,29 @@ my $part_create = sub {
         #$f->($fseq,$d,$size) 
     unless( $d->{extended} ){
         my $extend_seq = ["n\n","e\n","\n","\n","\n","w\n"];
-        #$extend_seq->[4] = "$size\n" if defined $size;
         my $e = $f->($extend_seq,$d);
         $d->{extended} = $e->[0];
-        #push @{$part->($d->{id})->{part}}, $e->[0];
         $seen{$d->{extended}} = 1;
-        say "creating extended:" . $d->{extended}; 
-        say Dumper $d;
-        #die;
     }
 
-    my $fseq = ["n\n","\n","\n","\n","w\n"];
+    my $fseq = ["n\n","\n","\n","\n","\n","w\n"];
 
     if( $d->{extended} ){
-       $fseq->[2] = "$size\n" if defined $size;
-    } else { 
        $fseq->[4] = "$size\n" if defined $size;
+    } else { 
+       $fseq->[2] = "$size\n" if defined $size;
    }
 
+    system('for i in `ls -tr  /sys/class/scsi_host/`;do echo "- - -" > /sys/class/scsi_host/$i/scan;done');
     my $new = $f->($fseq,$d);
     my $n = $new->[0];
-    say Dumper $n;
+    say Dumper $new;
+    say "\$n >>>>>>>>" . $n;
 
     $n =~ s/.*?([0-9]+)/$1/;
-    say "#new1" . $n;
+    say "\$n >>>>>>>>" . $n;
     $fseq = ["t\n","$n\n","8e\n","w\n"]; 
     $new = $f->($fseq,$d);
-    say "#new2" . $new;
     return $new;
 
     #my $fseq = ["n\n","\n","\n","\n","\n","w\n"] ["t\n","\n","8e\n","w\n"]; 
@@ -203,7 +199,6 @@ my $part_create = sub {
 
 };
 
-#system('for i in `ls -tr  /sys/class/scsi_host/`;do echo "- - -" > /sys/class/scsi_host/$i/scan;done');
 my $d = $part->('sdd');
 say Dumper $d;
 my $p = $part_create->($d);

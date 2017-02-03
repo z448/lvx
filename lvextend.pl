@@ -122,19 +122,24 @@ my $fdisk = sub {
 
 my $part = sub {
     my( $disk,$size ) = @_;
-    my( %p, @p, %seen ) = ();
+    my( @p, %seen ) = ();
     my %d = ( id => $disk, path => "/dev/$disk", part => \@p );
+    #my %d = ( id => $disk, path => "/dev/$disk", part => \@p );
 
     if(-b $d{path}){
         open my $p,'-|',"fdisk -l /dev/$disk";
         while(<$p>){ 
             chomp; next unless $_ =~ /^\/dev\//;
-            if(/(^.*?[0-9]+) .* (.*)$/){ 
+            if(/(^\/.*?[0-9]+) .* (.*)$/){ 
+                my %p = ();
                 $d{extended} = $1 if $2 eq "Extended";
                 $seen{$1} = $2;
-                push @p, $1; 
+                $p{path} = $1;
+                $p{type} = $2;
+                push @p, {%p}; 
             }
         }; 
+
         close $p;
 
         #    open $p,'-|',"find /dev/|grep $disk";
@@ -147,6 +152,7 @@ my $part = sub {
     return \%d;
 };
 
+
 my $part_create = sub {
     my( $d, $size ) = @_;
 
@@ -157,53 +163,72 @@ my $part_create = sub {
     #$fseq->[2] = "$size\n" if defined $size;
     #unshift(@$fseq, "n\n","e\n","\n","\n","\n","w\n") unless $d->{extended};
     #$fseq->[4] = "$size\n" if defined $size;
-    my %seen; @seen{ @{$d->{part}} } = ();
+    #
+    #my %seen; @seen{ @{$d->{part}} } = ();
+    my %seen;
 
     my $f = sub {
         my( $seq,$d ) = @_;
+        for( @{$part->($d->{id})->{part}} ){ $seen{$_->{path}} = $_->{type} }
         open my $p,'|-', "fdisk $d->{path}";
         for( @$seq ){ print $p $_ }; close $p;
-        my @part = grep { ! exists $seen{$_} } @{$part->($d->{id})->{part}};
-        return \@part;
+        system("partprobe $d->{path}");
+        my( $new_part ) = grep { ! exists $seen{path} } @{$part->($d->{id})->{part}};
+        $new_part->{number} = $new_part->{path} =~ m[^/.*?([0-9]+)$];
+        return $new_part;
     };
+
         #$f->($fseq,$d,$size) 
-    unless( $d->{extended} ){
+    unless( defined $d->{extended} ){
         my $extend_seq = ["n\n","e\n","\n","\n","\n","w\n"];
         my $e = $f->($extend_seq,$d);
-        $d->{extended} = $e->[0];
-        $seen{$d->{extended}} = 1;
+        $d->{extended} = $e->{path}; 
+        #$seen{"$e->{path}"} = $e->{type};
+        print "Dumper in extended >>>>>>>>"; say Dumper $e;
+        #return $e;
+        #$existing{$d->{extended}} = 1;
     }
 
-    my $fseq = ["n\n","\n","\n","\n","\n","w\n"];
-
-    if( $d->{extended} ){
-       $fseq->[4] = "$size\n" if defined $size;
-    } else { 
-       $fseq->[2] = "$size\n" if defined $size;
-   }
-
     system('for i in `ls -tr  /sys/class/scsi_host/`;do echo "- - -" > /sys/class/scsi_host/$i/scan;done');
-    my $new = $f->($fseq,$d);
-    my $n = $new->[0];
-    say Dumper $new;
-    say "\$n >>>>>>>>" . $n;
+    my $fseq = ["n\n","\n","\n","w\n"];
+    if( defined $size and exists $d->{extended} ){ $fseq->[2] = "$size\n" }
 
-    $n =~ s/.*?([0-9]+)/$1/;
-    say "\$n >>>>>>>>" . $n;
-    $fseq = ["t\n","$n\n","8e\n","w\n"]; 
+    say ">>>> trying to create logical part";
+    my $new;
     $new = $f->($fseq,$d);
+    if( exists $new->{number} ){ say "Dumper logical >>>>" . Dumper $new }
+    $new = {};
+
+    unless(exists $new->{number}){
+        say ">>>> couldnt create logical";
+        $fseq = ["n\n","\n","\n","\n","\n","w\n"];
+        if( defined $size and exists $d->{extended} ){ $fseq->[4] = "$size\n" } 
+        $new = $f->($fseq,$d);
+        say ">>>> trying primary";
+        die "couldnt create primary" unless exists $new->{number};
+        say ">>>> created primary" . Dumper $new if exists $new->{number};
+    }
+
+    say ">>>> trying changing type of $new->{number} to LVM";
+    $fseq = ["t\n","$new->{number}\n","8e\n","w\n"]; 
+    $new = $f->($fseq,$d);
+    if(exists $new->{number}){ print ">>>> type created "; say Dumper $new }
+    else { die "couldnt change type to LVM" }
     return $new;
 
-    #my $fseq = ["n\n","\n","\n","\n","\n","w\n"] ["t\n","\n","8e\n","w\n"]; 
-#    say Dumper $f->($seq);
+=head1
+=cut
 
 };
 
 my $d = $part->('sdd');
-say Dumper $d;
-my $p = $part_create->($d);
+print ">>>> geting Disk part info "; say Dumper $d;
+my $p = $part_create->($d,'+5G');
+print ">>>> created part"; say Dumper $p;
+#say "Dumper checking \$part->() after new >>>>    "; print Dumper $part->('sdd');
 die;
 =head1
+say Dumper $d;
 =cut
 
 my $create_part = sub {

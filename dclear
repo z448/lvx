@@ -1,0 +1,13 @@
+#!/usr/bin/env perl
+
+use 5.010;
+use warnings;
+use strict;
+
+chomp(my $disk = <>);
+my $seq = ("d\n","\n","d\n","\n","d\n","\n","w\n");
+open my $p,"|-","fdisk /dev/$disk";
+print $p $_ for @seq;
+close $p;
+say `fdisk -l $disk`;
+

@@ -150,22 +150,47 @@ my $part = sub {
 my $part_create = sub {
     my( $d, $size ) = @_;
 
-    my %seen; @seen{ @{$d->{part}} } = ();
-    my $fseq = ["n\n","\n","\n","\n","\n","w\n"];
-    $fseq->[4] = "$size\n" if defined $size;
+    #my $fseq = ["n\n","\n","\n","\n","\n","w\n"];
+    #$fseq->[4] = "$size\n" if defined $size;
+
+    #my $fseq = ["n\n","\n","\n","\n","\n","w\n"];
     #$fseq->[2] = "$size\n" if defined $size;
-    unshift(@$fseq, "n\n","e\n","\n","\n","\n") unless $d->{extended};
+    #unshift(@$fseq, "n\n","e\n","\n","\n","\n","w\n") unless $d->{extended};
+    #$fseq->[4] = "$size\n" if defined $size;
+    my %seen; @seen{ @{$d->{part}} } = ();
 
     my $f = sub {
-        my( $seq,$d,$size ) = @_;
-        open my $p,'|-', "fdisk $d->{path}" ;
+        my( $seq,$d ) = @_;
+        open my $p,'|-', "fdisk $d->{path}";
         for( @$seq ){ print $p $_ }; close $p;
         my @part = grep { ! exists $seen{$_} } @{$part->($d->{id})->{part}};
         return \@part;
     };
+        #$f->($fseq,$d,$size) 
+    unless( $d->{extended} ){
+        my $extend_seq = ["n\n","e\n","\n","\n","\n","w\n"];
+        #$extend_seq->[4] = "$size\n" if defined $size;
+        my $e = $f->($extend_seq,$d);
+        $d->{extended} = $e->[0];
+        #push @{$part->($d->{id})->{part}}, $e->[0];
+        $seen{$d->{extended}} = 1;
+        say "creating extended:" . $d->{extended}; 
+        say Dumper $d;
+        #die;
+    }
+
+    my $fseq = ["n\n","\n","\n","\n","w\n"];
+
+    if( $d->{extended} ){
+       $fseq->[2] = "$size\n" if defined $size;
+    } else { 
+       $fseq->[4] = "$size\n" if defined $size;
+   }
+
     my $new = $f->($fseq,$d);
-    say Dumper $new;
     my $n = $new->[0];
+    say Dumper $n;
+
     $n =~ s/.*?([0-9]+)/$1/;
     say "#new1" . $n;
     $fseq = ["t\n","$n\n","8e\n","w\n"]; 
@@ -179,11 +204,11 @@ my $part_create = sub {
 };
 
 #system('for i in `ls -tr  /sys/class/scsi_host/`;do echo "- - -" > /sys/class/scsi_host/$i/scan;done');
-=head1
-my $d = $part->('sdb');
+my $d = $part->('sdd');
 say Dumper $d;
-my $p = $part_create->($d,'+5G');
+my $p = $part_create->($d);
 die;
+=head1
 =cut
 
 my $create_part = sub {

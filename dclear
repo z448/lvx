@@ -17,5 +17,8 @@ my $fdisk = sub {
     say `lsblk`;
 };
 
-$fdisk->($ARGV[0]);
+my $disk = <>;
+chomp $disk;
+
+$fdisk->($disk);
 

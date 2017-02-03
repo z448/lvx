@@ -152,11 +152,12 @@ my $part_create = sub {
 
     my %seen; @seen{ @{$d->{part}} } = ();
     my $fseq = ["n\n","\n","\n","\n","\n","w\n"];
+    $fseq->[4] = "$size\n" if defined $size;
     #$fseq->[2] = "$size\n" if defined $size;
     unshift(@$fseq, "n\n","e\n","\n","\n","\n") unless $d->{extended};
 
     my $f = sub {
-        my( $seq,$d ) = @_;
+        my( $seq,$d,$size ) = @_;
         open my $p,'|-', "fdisk $d->{path}" ;
         for( @$seq ){ print $p $_ }; close $p;
         my @part = grep { ! exists $seen{$_} } @{$part->($d->{id})->{part}};
@@ -178,11 +179,12 @@ my $part_create = sub {
 };
 
 #system('for i in `ls -tr  /sys/class/scsi_host/`;do echo "- - -" > /sys/class/scsi_host/$i/scan;done');
-my $d = $part->('sdf');
+=head1
+my $d = $part->('sdb');
 say Dumper $d;
 my $p = $part_create->($d,'+5G');
-say $p;
 die;
+=cut
 
 my $create_part = sub {
 	my $m  = shift;

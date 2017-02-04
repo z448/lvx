@@ -8,6 +8,8 @@ use Data::Dumper;
 use File::Path qw( mkpath );
 use Getopt::Std;
 
+use Test::Simple tests => 3;
+
 my $opt = {};
 my $ch;
 getopts('n:e:', $opt);
@@ -120,116 +122,96 @@ my $fdisk = sub {
 
 };
 
-my $part = sub {
+my $disk = sub {
     my( $disk,$size ) = @_;
-    my( @p, %seen ) = ();
-    my %d = ( id => $disk, path => "/dev/$disk", part => \@p );
-    #my %d = ( id => $disk, path => "/dev/$disk", part => \@p );
+    my( @p ) = ();
+    my %d = ( name => $disk, path => "/dev/$disk" );
 
     if(-b $d{path}){
-        open my $p,'-|',"fdisk -l /dev/$disk";
-        while(<$p>){ 
+        open my $pipe,'-|',"fdisk -l /dev/$disk";
+        while(<$pipe>){ 
             chomp; next unless $_ =~ /^\/dev\//;
             if(/(^\/.*?[0-9]+) .* (.*)$/){ 
                 my %p = ();
                 $d{extended} = $1 if $2 eq "Extended";
-                $seen{$1} = $2;
+                #       $seen{$1} = $2;
                 $p{path} = $1;
                 $p{type} = $2;
                 push @p, {%p}; 
             }
         }; 
-
-        close $p;
-
-        #    open $p,'-|',"find /dev/|grep $disk";
-        #while(<$p>){ 
-        #    chomp; next if $_ eq $d{path};
-        #    push @p, $_ unless exists $seen{$_};
-        #}
-        #close $p;
+        close $pipe;
+    $d{part} = \@p;
     }
     return \%d;
 };
 
 
-my $part_create = sub {
+my $part = sub {
     my( $d, $size ) = @_;
-
-    #my $fseq = ["n\n","\n","\n","\n","\n","w\n"];
-    #$fseq->[4] = "$size\n" if defined $size;
-
-    #my $fseq = ["n\n","\n","\n","\n","\n","w\n"];
-    #$fseq->[2] = "$size\n" if defined $size;
-    #unshift(@$fseq, "n\n","e\n","\n","\n","\n","w\n") unless $d->{extended};
-    #$fseq->[4] = "$size\n" if defined $size;
-    #
-    #my %seen; @seen{ @{$d->{part}} } = ();
-    my %seen;
 
     my $f = sub {
         my( $seq,$d ) = @_;
-        for( @{$part->($d->{id})->{part}} ){ $seen{$_->{path}} = $_->{type} }
-        open my $p,'|-', "fdisk $d->{path}";
-        for( @$seq ){ print $p $_ }; close $p;
+        my $seen = {};
+        for( @{$disk->($d->{name})->{part}} ){ $seen->{"$_->{path}"} = $_->{type} }
+
+        open my $pipe,'|-', "fdisk $d->{path}";
+        for( @$seq ){ print $pipe $_ }; close $pipe;
         system("partprobe $d->{path}");
-        my( $new_part ) = grep { ! exists $seen{path} } @{$part->($d->{id})->{part}};
-        $new_part->{number} = $new_part->{path} =~ m[^/.*?([0-9]+)$];
-        return $new_part;
+        
+        my $state = $disk->($d->{name})->{part};
+        my( $p ) = grep { ! exists $seen->{"$_->{path}"} } @$state;
+        $p->{number} = $p->{path}; $p->{number} =~ s/\/.*?([0-9]+)/$1/;
+
+        return $p;
     };
 
-        #$f->($fseq,$d,$size) 
-    unless( defined $d->{extended} ){
-        my $extend_seq = ["n\n","e\n","\n","\n","\n","w\n"];
-        my $e = $f->($extend_seq,$d);
-        $d->{extended} = $e->{path}; 
-        #$seen{"$e->{path}"} = $e->{type};
-        print "Dumper in extended >>>>>>>>"; say Dumper $e;
-        #return $e;
-        #$existing{$d->{extended}} = 1;
-    }
-
     system('for i in `ls -tr  /sys/class/scsi_host/`;do echo "- - -" > /sys/class/scsi_host/$i/scan;done');
-    my $fseq = ["n\n","\n","\n","w\n"];
-    if( defined $size and exists $d->{extended} ){ $fseq->[2] = "$size\n" }
+    my $seq = {
+        e   =>  ["n\n","e\n","\n","\n","\n","w\n"],
+        l   =>  ["n\n","\n","\n","w\n"],
+        p   =>  ["n\n","\n","\n","\n","\n","w\n"],
+    };
 
-    say ">>>> trying to create logical part";
-    my $new;
-    $new = $f->($fseq,$d);
-    if( exists $new->{number} ){ say "Dumper logical >>>>" . Dumper $new }
-    $new = {};
-
-    unless(exists $new->{number}){
-        say ">>>> couldnt create logical";
-        $fseq = ["n\n","\n","\n","\n","\n","w\n"];
-        if( defined $size and exists $d->{extended} ){ $fseq->[4] = "$size\n" } 
-        $new = $f->($fseq,$d);
-        say ">>>> trying primary";
-        die "couldnt create primary" unless exists $new->{number};
-        say ">>>> created primary" . Dumper $new if exists $new->{number};
+    unless( exists $d->{extended} ){
+        my $e = $f->($seq->{e},$d);
+        $d->{extended} = $e->{path}; 
+        ok( $e->{type} eq "Extended", 'create extended' );
     }
 
-    say ">>>> trying changing type of $new->{number} to LVM";
-    $fseq = ["t\n","$new->{number}\n","8e\n","w\n"]; 
-    $new = $f->($fseq,$d);
-    if(exists $new->{number}){ print ">>>> type created "; say Dumper $new }
-    else { die "couldnt change type to LVM" }
-    return $new;
+    $seq->{l}->[2] = "$size\n" if defined $size;
+    my $p = $f->($seq->{l},$d);
+    ok( $p->{type} eq 'Linux', 'create logical part');
+
+    unless($p->{type} eq 'Linux'){
+        $p = undef;
+        $seq->{p}->[4] = "$size\n" if defined $size;
+        $p = $f->($seq->{p},$d);
+        ok( $p->{type} eq 'Linux', 'create primary part');
+    }
+
+    $seq->{t} = ["t\n","$p->{number}\n","8e\n","w\n"]; 
+    my $t = $f->($seq->{t},$d),'change type to lvm';
+    say "---------->";
+    say Dumper $t;
+
+    return $p;
 
 =head1
 =cut
 
 };
 
-my $d = $part->('sdd');
-print ">>>> geting Disk part info "; say Dumper $d;
-my $p = $part_create->($d,'+5G');
-print ">>>> created part"; say Dumper $p;
-#say "Dumper checking \$part->() after new >>>>    "; print Dumper $part->('sdd');
+{
+my $d = 'sdg';
+my $p = $disk->($d);
+my $new =  $part->($p);
+say Dumper $new;
+say "\n\n" . `lsblk /dev/$d`;
 die;
 =head1
-say Dumper $d;
 =cut
+}
 
 my $create_part = sub {
 	my $m  = shift;

@@ -2,8 +2,8 @@
 # expand disk in VM(host has to be turned off); dir space will be resized
 expand( dir, size? ):
     die if dir doesnt exist;
-    map->(dir, size)
-    lvm
+    map->(dir, size): return-> $disk, $vg, $lv
+    lvm->($disk, $vg, $lv, $dir, $size)
 
 # add new disk in VM, dir space will be resized by extending vg lv on new partition, mounted on existing dir 
 extend( dir, disk, size? ):
@@ -23,6 +23,9 @@ new( dir, disk, vg, lv, size? )
         die if disk still doesnt exist
     create partition on disk
     lvm
+
+
+---
 
 
 

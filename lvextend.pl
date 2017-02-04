@@ -16,18 +16,18 @@ getopts('n:e:', $opt);
 
 
 my $map = sub {
-    my( $path, $size ) = @_;
+    my( $dir, $size ) = @_;
     my( %m, @m )= ();
 
-    my $dfh = `df -h $path`;
-    die "mountpoint $path doesnt exist" unless $dfh =~ /.*/;
+    #my $dfh = `df -h $dir`;
+    #die "mountpoint $dir doesnt exist" unless $dfh =~ /.*/;
 
-    open(my $fh,'<', \$dfh);
-    while(<$fh>){
-        chomp; next if $_ =~ /Filesystem/;
-        ( $m{lv_path}, $m{size}, $m{used}, $m{avail}, $m{used_perc}, $m{mountpoint})  = split(/\s+/, $_);
-        %m = () and next unless $m{mountpoint} eq $path;
-        say "###$m{mountpoint}";
+    open my $pipe,"-|","df -h $dir";
+    while(<$pipe>){
+        next if $_ =~ /^Filesystem/;
+        ( $m{lv_path}, $m{size}, $m{used}, $m{avail}, $m{used_perc}, $m{dir})  = split(/\s+/, $_);
+
+        unless( $m{dir} eq $dir ){ %m = () and next }
         ( $m{vg}, $m{lv} ) = split(" ", `lvs $m{lv_path} --noheadings -o vg_name,lv_name`);
 
         my( @pv, %pv_choose )= ();
@@ -38,24 +38,12 @@ my $map = sub {
                 push @pv, $pv;
                 $pv =~ s/(.*?)([0-9]+)/$1$2/;
                 $pv_choose{"$1"} = $2 if $lv eq $m{lv} }
-            #$pv_choose{"$1"} = $2 if $lv eq $m{lv} }
         }
-        
-=head1
-        
-        open my $p,'-|',"pvs -a";
-        while( <$p> ){
-            if(/(\/.*?) .*?($m{vg})/){ 
-                push @pv, $1;
-                my $d = $1; $d =~ s/(.*?)([0-9]+)/$1$2/g;
-                $pv_choose{$1} = $2;
-            }
-        }
-=cut
-        $m{pv} = \@pv; close $p;
+        $m{pv} = \@pv;
+        close $p;
+
         $m{pv_choose} = \%pv_choose;
         for(keys %pv_choose){ $m{disk} = $_ }
-        #$m{disk} = $m{pv}->[0]; $m{disk} =~ s/[0-9]+//g;
 
         open $p,'-|',"lsblk -dnl $m{disk} --output SIZE";
         chomp( $m{disk_size} = <$p> ); close $p;
@@ -63,51 +51,23 @@ my $map = sub {
         open $p,'-|',"lsblk -dnl $m{lv_path} --output SIZE";
         chomp( $m{lv_size} = <$p> ); close $p;
 
-        $m{pv_next} = $m{disk} . ($pv_choose{"$m{disk}"} + 1);
-        #$m{pv_next} = $m{disk} . ($#pv + 2);
-        $m{pv_last} = $#pv + 1;
-        
-        #primary# n \n \n \n $size 
-         
-        #extended# n e \n \n \n #logical# n \n $size t \n 8e w
-                    
+        #$m{pv_next} = $m{disk} . ($pv_choose{"$m{disk}"} + 1);
+        #$m{pv_last} = $#pv + 1;
+        #$m{fdisk_seq} = ["n\n","\n","\n","t\n","\n","8e\n","w\n"]; 
+        #$m{fdisk_seq}->[2] = "$size\n" if defined $size;
 
-        #$m{fdisk_seq} = ["n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n"]; 
-        $m{fdisk_seq} = ["n\n","\n","\n","t\n","\n","8e\n","w\n"]; 
-        $m{fdisk_seq}->[2] = "$size\n" if defined $size;
-        #$m{fdisk_seq} = ["n\n","e\n","\n","\n","\n","n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n"]; 
-        #$m{fdisk_seq} = ["n\n","\n","\n","\n","\n","t\n","\n","8e\n","\n","w\n"]; 
-        # $m{fdisk_seq}->[4] = "$size\n" if defined $size;
-        open $p,'-|', "fdisk -l $m{disk}";
-        while(<$p>){
-            chomp;
-            $m{part_extended} = 1 if $_ =~ /\ Extended$/;
-            say "###### $m{part_extended}";#test
-            $m{check_pv_next} = $1 if $_ =~ /(^\/.*?[0-9]+) /;
-            say "###### $m{check_pv_next}";
-        }
-        close $p;
+        #open $p,'-|', "fdisk -l $m{disk}";
+        #while(<$p>){
+        #    chomp;
+        #    $m{part_extended} = 1 if $_ =~ /\ Extended$/;
+        #    $m{check_pv_next} = $1 if $_ =~ /(^\/.*?[0-9]+) /;
+        #}
+        #close $p;
             
-                #s/(^\/.*?[0-9]+).*/$1/;
-            #chomp( $m{check_pv_next} = <$p> );
-
-        unshift(@{$m{fdisk_seq}}, "n\n","e\n","\n","\n","\n") unless $m{part_extended};
-        #if(defined $size){ 
-            #if( $m{part_extended} ){ 
-                #$m{fdisk_seq}->[1] = "l\n";
-                #} else { 
-                #$m{fdisk_seq}->[4] = "$size\n" if defined $size;
-                #}
-            #}
-
-        #open $p,'-|', "fdisk -l $m{disk} |tail -1 |cut -d' ' -f1";
-
+        #unshift(@{$m{fdisk_seq}}, "n\n","e\n","\n","\n","\n") unless $m{part_extended};
     }
-
-    print"\$map:"; say Dumper \%m;
-    
+    close $pipe;
     return \%m;
-    die;
 };
 
 my $lv_create = sub {
@@ -261,12 +221,12 @@ my $lv_extend = sub {
 };
 
 my $lvm_old = sub {
-    my( $path, $size ) = @_;
-    my $dfh = `df -h $path`; chomp $dfh;
-    die if $dfh !~ /$path/;
+    my( $dir, $size ) = @_;
+    my $dfh = `df -h $dir`; chomp $dfh;
+    die if $dfh !~ /$dir/;
     if( defined $size and $size !~ /^\+[0-9]+(K|M|G|T|P)$/){ die system("perldoc $0") }
 
-    my $m = $map->( $path, $size);
+    my $m = $map->( $dir, $size);
     say Dumper $m;
     #die "cant create more LVM partitions on $m->{disk}" if $m->{pv_last} == 4; 
     if( $m->{disk_size} eq $m->{lv_size} ){ die "$m->{lv} size same as $m->{disk} size, nothing to do" }
@@ -289,9 +249,9 @@ my $lv_exist = sub {
 };
 
 my $lvm = sub {
-    my($disk, $vg, $lv, $path, $size) = @_;
+    my($disk, $vg, $lv, $dir, $size) = @_;
 
-    mkpath($path) unless -d $path;
+    mkpath($dir) unless -d $dir;
 
 };
 
@@ -302,7 +262,7 @@ sub expand {
     my $m = $map->($dir, $size);
     #$lvm->( $m, $size );
 }
-say Dumper expand('sdi','+9G');
+say Dumper expand('/A','+9G');
 die;
 
 =head1
@@ -321,9 +281,9 @@ die;
 =cut
 
 my $lv_new = sub {
-    my($disk, $vg, $lv, $path, $size) = @_;
+    my($disk, $vg, $lv, $dir, $size) = @_;
 
-    mkpath($path) unless -d $path;
+    mkpath($dir) unless -d $dir;
 
     my $fdisk = sub {
         my $disk = shift; 
@@ -369,7 +329,7 @@ my $lv_new = sub {
 
         system($lvm->{vg}->());
         system($lvm->{lv}->());
-        system("mount /dev/$vg/$lv $path");
+        system("mount /dev/$vg/$lv $dir");
 
         #TODO: for expand
         #  487  pvcreate /dev/sdh4

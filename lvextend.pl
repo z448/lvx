@@ -122,6 +122,7 @@ my $fdisk = sub {
 
 };
 
+# get hashref of exsisting $disk partitions
 my $disk = sub {
     my( $disk ) = @_;
     my( @p ) = ();
@@ -134,30 +135,31 @@ my $disk = sub {
             if(/(^\/.*?[0-9]+) .* (.*)$/){ 
                 my %p = ();
                 $d{extended} = $1 if $2 eq "Extended";
-                #       $seen{$1} = $2;
                 $p{path} = $1;
                 $p{type} = $2;
                 push @p, {%p}; 
             }
         }; 
         close $pipe;
-    $d{part} = \@p;
+        $d{part} = \@p;
     }
     return \%d;
 };
 
 
+# create partition on disk with optional size
 my $part = sub {
     my( $d, $size ) = @_;
 
-    my $f = sub {
+    #run fdisk to create partition, return hasref of created partition
+    my $create = sub {
         my( $seq,$d ) = @_;
         my $seen = {};
         for( @{$disk->($d->{name})->{part}} ){ $seen->{"$_->{path}"} = $_->{type} }
 
         open my $pipe,'|-', "fdisk $d->{path}";
         for( @$seq ){ print $pipe $_ }; close $pipe;
-        system("partprobe $d->{path}");
+        system("partprobe $d->{path}"); # write chages with partprobe
         
         my $state = $disk->($d->{name})->{part};
         my( $p ) = grep { ! exists $seen->{"$_->{path}"} } @$state;
@@ -172,40 +174,33 @@ my $part = sub {
         p   =>  ["n\n","\n","\n","\n","\n","w\n"],
     };
 
+    # create extended partition if doesnt exist
     unless( exists $d->{extended} ){
-        my $e = $f->($seq->{e},$d);
+        my $e = $create->($seq->{e},$d);
         $d->{extended} = $e->{path}; 
         ok( $e->{type} eq "Extended", 'create extended' );
     }
 
+    #try to create logical partition...
     $seq->{l}->[2] = "$size\n" if defined $size;
-    my $p = $f->($seq->{l},$d);
+    my $p = $create->($seq->{l},$d);
     ok( $p->{type} eq 'Linux', 'create logical part');
 
+    #...create primary partition if creating logical failed
     unless($p->{type} eq 'Linux'){
         $p = undef;
         $seq->{p}->[4] = "$size\n" if defined $size;
-        $p = $f->($seq->{p},$d);
+        $p = $create->($seq->{p},$d);
         ok( $p->{type} eq 'Linux', 'create primary part');
     }
 
+    # change partition type to LVM
     $seq->{t} = ["t\n","$p->{number}\n","8e\n","w\n"]; 
-    my $t = $f->($seq->{t},$d);
+    my $t = $create->($seq->{t},$d);
 
     return $p;
 };
 
-{
-system('for i in `ls -tr  /sys/class/scsi_host/`;do echo "- - -" > /sys/class/scsi_host/$i/scan;done');
-my $d = 'sdh';
-my $p = $disk->($d);
-my $new =  $part->($p,'+5G');
-say Dumper $new;
-say "\n\n" . `lsblk /dev/$d`;
-die;
-=head1
-=cut
-}
 
 my $create_part = sub {
 	my $m  = shift;
@@ -265,7 +260,7 @@ my $lv_extend = sub {
 	system("resize2fs /dev/$m->{vg}/$m->{lv}");
 };
 
-my $lvm = sub {
+my $lvm_old = sub {
     my( $path, $size ) = @_;
     my $dfh = `df -h $path`; chomp $dfh;
     die if $dfh !~ /$path/;
@@ -293,16 +288,33 @@ my $lv_exist = sub {
     }
 };
 
-my $lv_new = sub {
+my $lvm = sub {
     my($disk, $vg, $lv, $path, $size) = @_;
 
-#open my $psss,'>&',STDOUT;
-#open STDOUT,'+>', undef;
+    mkpath($path) unless -d $path;
 
-        #$pv_choose = s/(.*?)([0-9]+)/$1$2/;
-        #say "\$1:$1 \$2:$2";
-        #$m->{disk} = $1;
-        #$m->{pv_next} = $2 + 1; $m->{pv_next} = $m->{disk} . $m->{pv_next};
+};
+
+sub create {
+    my($disk, $vg, $lv, $path, $size) = @_;
+    my( $name, $size ) = @_; 
+
+    my $partition = $part->( $disk->($name) , $size );
+
+    =head1
+#system('for i in `ls -tr  /sys/class/scsi_host/`;do echo "- - -" > /sys/class/scsi_host/$i/scan;done');
+    =cut
+    my $p = $disk->($d); # get disk partitions info
+    my $new =  $part->($p,'+5G'); # create new partition on disk
+    my $l = 
+    say Dumper $new;
+    say "\n\n" . `lsblk /dev/$d`;
+    die;
+}
+
+
+my $lv_new = sub {
+    my($disk, $vg, $lv, $path, $size) = @_;
 
     mkpath($path) unless -d $path;
 
@@ -387,7 +399,7 @@ if(defined $opt->{n}){
     my @extend = split(',',$opt->{e});
     die "cant create partition om $extend[0], disk is assigned to $lv_exist->($extend[0],'pv')" if $lv_exist->($extend[0],'pv');
 
-    my $m = $lvm->(@extend);
+    my $m = $lvm_old->(@extend);
     $lv_extend->($m);
 
     say Dumper $m;

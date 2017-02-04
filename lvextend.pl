@@ -15,12 +15,33 @@ my $ch;
 getopts('n:e:', $opt);
 
 
+# get hashref of exsisting $disk partitions
+my $disk = sub {
+    my( $disk ) = @_;
+    my( @p ) = ();
+    my %d = ( name => $disk, path => "/dev/$disk" );
+
+    if(-b $d{path}){
+        open my $pipe,'-|',"fdisk -l /dev/$disk";
+        while(<$pipe>){ 
+            chomp; next unless $_ =~ /^\/dev\//;
+            if(/(^\/.*?[0-9]+) .* (.*)$/){ 
+                my %p = ();
+                $d{extended} = $1 if $2 eq "Extended";
+                $p{path} = $1;
+                $p{type} = $2;
+                push @p, {%p}; 
+            }
+        }; 
+        close $pipe;
+        $d{part} = \@p;
+    }
+    return \%d;
+};
+
 my $map = sub {
     my( $dir, $size ) = @_;
     my( %m, @m )= ();
-
-    #my $dfh = `df -h $dir`;
-    #die "mountpoint $dir doesnt exist" unless $dfh =~ /.*/;
 
     open my $pipe,"-|","df -h $dir";
     while(<$pipe>){
@@ -36,6 +57,7 @@ my $map = sub {
                 push @pv, $pv;
                 $pv =~ s/(.*?)([0-9]+)/$1$2/;
                 $pv_choose{"$1"} = $2 if $lv eq $m{lv};
+                $m{disks}->{"$1"} = $disk->('sdb');
             }
         }
         $m{pv} = \@pv;
@@ -78,31 +100,13 @@ my $fdisk = sub {
 
 };
 
-# get hashref of exsisting $disk partitions
-my $disk = sub {
-    my( $disk ) = @_;
-    my( @p ) = ();
-    my %d = ( name => $disk, path => "/dev/$disk" );
-
-    if(-b $d{path}){
-        open my $pipe,'-|',"fdisk -l /dev/$disk";
-        while(<$pipe>){ 
-            chomp; next unless $_ =~ /^\/dev\//;
-            if(/(^\/.*?[0-9]+) .* (.*)$/){ 
-                my %p = ();
-                $d{extended} = $1 if $2 eq "Extended";
-                $p{path} = $1;
-                $p{type} = $2;
-                push @p, {%p}; 
-            }
-        }; 
-        close $pipe;
-        $d{part} = \@p;
-    }
-    return \%d;
-};
-
-#say Dumper $disk->('sdb'); die;
+{
+    my $dir = { '/A' => $map->('/A') };
+    say Dumper $dir;
+}
+die;
+=head1
+=cut
 
 # create partition on disk with optional size
 my $part = sub {

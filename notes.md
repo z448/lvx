@@ -72,3 +72,63 @@ $VAR1 = {
                   ]
         };
 
+
+---
+
+$VAR1 = {
+          '/A' => {
+                    'lv' => 'lv_a',
+                    'vg' => 'vg_a',
+                    'disks' => {
+                                 'sdb' => {
+                                            'part' => [
+                                                        {
+                                                          'type' => 'Extended',
+                                                          'path' => '/dev/sdb1'
+                                                        },
+                                                        {
+                                                          'type' => 'LVM',
+                                                          'path' => '/dev/sdb5'
+                                                        },
+                                                        {
+                                                          'type' => 'LVM',
+                                                          'path' => '/dev/sdb6'
+                                                        }
+                                                      ],
+                                            'name' => 'sdb',
+                                            'extended' => '/dev/sdb1',
+                                            'path' => '/dev/sdb'
+                                          },
+                                 'sdc' => {
+                                            'part' => [
+                                                        {
+                                                          'path' => '/dev/sdc1',
+                                                          'type' => 'Extended'
+                                                        },
+                                                        {
+                                                          'path' => '/dev/sdc5',
+                                                          'type' => 'LVM'
+                                                        }
+                                                      ],
+                                            'name' => 'sdc',
+                                            'extended' => '/dev/sdc1',
+                                            'path' => '/dev/sdc'
+                                          }
+                               },
+                    'lv_path' => '/dev/mapper/vg_a-lv_a',
+                    'dd' => 'sdc',
+                    'pv_choose' => {
+                                     '/dev/sdb' => '6'
+                                   },
+                    'disk_size' => ' 34G',
+                    'dir' => '/A',
+                    'lv_size' => ' 20G',
+                    'pv' => [
+                              '/dev/sdb5',
+                              '/dev/sdb6',
+                              '/dev/sdc5'
+                            ],
+                    'disk' => '/dev/sdb'
+                  }
+        };
+

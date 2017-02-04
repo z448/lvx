@@ -57,7 +57,8 @@ my $map = sub {
                 push @pv, $pv;
                 $pv =~ s/(.*?)([0-9]+)/$1$2/;
                 $pv_choose{"$1"} = $2 if $lv eq $m{lv};
-                $m{disks}->{"$1"} = $disk->('sdb');
+                $m{dd} = $1; $m{dd} =~ s[/dev/(.*)][$1];
+                $m{disks}->{"$1"} = $disk->($m{dd});
             }
         }
         $m{pv} = \@pv;

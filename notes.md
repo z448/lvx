@@ -17,7 +17,7 @@ extend( mountpoint, disk, size? ):
     lvm
 
 # create new mountpoint, vg, lv on existing/new disk
-new( mountpoint, vg, lv, disk, size? )
+new( mountpoint, disk, vg, lv, size? )
     die if dir exist
     check if disk exist, if doesnt refresh
         die if disk still doesnt exist

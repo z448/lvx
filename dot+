@@ -76,8 +76,14 @@ $conf{arch} ;
 #print $c->();
 
 $write->();
+=head1 TODO
+
+alias/bind for apt-cache search, apt-get install ..
+
+script to git clone when you'll connected/disconnected from home wifi
+
+=cut
 __DATA__
-#TODO: alias/bind for apt-cache search, apt-get install ..
 
 # setup dots
 perl -E 'if(-f "$ENV{HOME}/Documents/perls/setup"){ system("$ENV{HOME}/Documents/perls/setup ~/local/bin") }'

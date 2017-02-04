@@ -19,7 +19,7 @@ extend( dir, disk, size? ):
 
 # create new mountpoint, vg, lv on existing/new disk
 new( dir, disk, vg, lv, size? )
-    die if dir exist # if i create new lv on existing vg and mount it on existing dir, space of dir will equal only to size of new lv. unmounting new lv_path (umount /dev/mapper/vg_existing-lv_new) will switch back size of dir to old size; not implementing for now
+    die if dir exist # if i create new lv on existing vg and mount it on existing dir, space of dir equals only to size of new lv. unmounting new lv_path (umount /dev/mapper/vg_existing-lv_new) will switch back size of dir to old size; mounting new lv_path again will restore content of new lv (this  works only  when there is entry in /etc/fstab (/dev/vg_existing-lv_new /dir ext4 defaults 0 1); not implementing for now
 
     check if disk exist, if doesnt refresh
         die if disk still doesnt exist

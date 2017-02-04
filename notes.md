@@ -11,6 +11,8 @@ extend( mountpoint, disk, size? ):
     check if disk exist, if doesnt refresh
         die if disk doesnt exist
     map->(mountpoint, size?) to get vg, lv of /dir
+    
+    if there is space for partition on other disk where /dir is already mounted offer disk names option
     create partition on disk
     lvm
 

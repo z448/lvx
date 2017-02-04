@@ -295,15 +295,21 @@ my $lvm = sub {
 
 };
 
-sub create {
-    my($disk, $vg, $lv, $path, $size) = @_;
-    my( $name, $size ) = @_; 
+sub expand {
+    my ($dir, $size) = @_;
+    die unless -d $dir;
 
+    my $m = $map->($dir, $size);
+    #$lvm->( $m, $size );
+}
+say Dumper expand('sdi','+9G');
+die;
+
+=head1
+    my( $name, $size ) = @_; 
     my $partition = $part->( $disk->($name) , $size );
 
-    =head1
 #system('for i in `ls -tr  /sys/class/scsi_host/`;do echo "- - -" > /sys/class/scsi_host/$i/scan;done');
-    =cut
     my $p = $disk->($d); # get disk partitions info
     my $new =  $part->($p,'+5G'); # create new partition on disk
     my $l = 
@@ -312,6 +318,7 @@ sub create {
     die;
 }
 
+=cut
 
 my $lv_new = sub {
     my($disk, $vg, $lv, $path, $size) = @_;

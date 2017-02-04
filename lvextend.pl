@@ -123,7 +123,7 @@ my $fdisk = sub {
 };
 
 my $disk = sub {
-    my( $disk,$size ) = @_;
+    my( $disk ) = @_;
     my( @p ) = ();
     my %d = ( name => $disk, path => "/dev/$disk" );
 
@@ -166,7 +166,6 @@ my $part = sub {
         return $p;
     };
 
-    system('for i in `ls -tr  /sys/class/scsi_host/`;do echo "- - -" > /sys/class/scsi_host/$i/scan;done');
     my $seq = {
         e   =>  ["n\n","e\n","\n","\n","\n","w\n"],
         l   =>  ["n\n","\n","\n","w\n"],
@@ -191,21 +190,16 @@ my $part = sub {
     }
 
     $seq->{t} = ["t\n","$p->{number}\n","8e\n","w\n"]; 
-    my $t = $f->($seq->{t},$d),'change type to lvm';
-    say "---------->";
-    say Dumper $t;
+    my $t = $f->($seq->{t},$d);
 
     return $p;
-
-=head1
-=cut
-
 };
 
 {
-my $d = 'sdg';
+system('for i in `ls -tr  /sys/class/scsi_host/`;do echo "- - -" > /sys/class/scsi_host/$i/scan;done');
+my $d = 'sdh';
 my $p = $disk->($d);
-my $new =  $part->($p);
+my $new =  $part->($p,'+5G');
 say Dumper $new;
 say "\n\n" . `lsblk /dev/$d`;
 die;

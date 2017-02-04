@@ -24,10 +24,8 @@ my $map = sub {
 
     open my $pipe,"-|","df -h $dir";
     while(<$pipe>){
-        next if $_ =~ /^Filesystem/;
-        ( $m{lv_path}, $m{size}, $m{used}, $m{avail}, $m{used_perc}, $m{dir})  = split(/\s+/, $_);
-
-        unless( $m{dir} eq $dir ){ %m = () and next }
+        next if $_ =~ /Filesystem/;
+        ( $m{lv_path}, $m{dir} ) = m[(^/.*?) .*($dir)$]g;
         ( $m{vg}, $m{lv} ) = split(" ", `lvs $m{lv_path} --noheadings -o vg_name,lv_name`);
 
         my( @pv, %pv_choose )= ();
@@ -37,7 +35,8 @@ my $map = sub {
             if( $vg eq $m{vg} ){ 
                 push @pv, $pv;
                 $pv =~ s/(.*?)([0-9]+)/$1$2/;
-                $pv_choose{"$1"} = $2 if $lv eq $m{lv} }
+                $pv_choose{"$1"} = $2 if $lv eq $m{lv};
+            }
         }
         $m{pv} = \@pv;
         close $p;
@@ -45,11 +44,8 @@ my $map = sub {
         $m{pv_choose} = \%pv_choose;
         for(keys %pv_choose){ $m{disk} = $_ }
 
-        open $p,'-|',"lsblk -dnl $m{disk} --output SIZE";
-        chomp( $m{disk_size} = <$p> ); close $p;
-
-        open $p,'-|',"lsblk -dnl $m{lv_path} --output SIZE";
-        chomp( $m{lv_size} = <$p> ); close $p;
+        chomp( $m{disk_size} = `lsblk -dnl $m{disk} --output SIZE` );
+        chomp( $m{lv_size} = `lsblk -dnl $m{lv_path} --output SIZE` );
 
         #$m{pv_next} = $m{disk} . ($pv_choose{"$m{disk}"} + 1);
         #$m{pv_last} = $#pv + 1;
@@ -106,6 +102,7 @@ my $disk = sub {
     return \%d;
 };
 
+#say Dumper $disk->('sdb'); die;
 
 # create partition on disk with optional size
 my $part = sub {

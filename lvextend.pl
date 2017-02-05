@@ -12,7 +12,6 @@ use Getopt::Std;
 use Test::Simple tests => 3;
 
 my $opt = {};
-my $ch;
 getopts('n:e:', $opt);
 
 
@@ -87,26 +86,6 @@ my $map = sub {
     return \%m;
 };
 
-my $lv_create = sub {
-    my $m = shift;
-	system("pvcreate $m->{pv_next}");
-	system("vgextend $m->{vg} $m->{pv_next}");
-};
-
-my $fdisk = sub {
-    my( $disk, $size ) = @_;
-
-
-};
-
-#{
-#    my $dir = { '/A' => $map->('/A') };
-#    say Dumper $dir;
-#}
-#die;
-=head1
-=cut
-
 # create partition on disk with optional size
 my $part = sub {
     my( $d, $size ) = @_;
@@ -161,79 +140,8 @@ my $part = sub {
     return $p;
 };
 
-
-my $create_part = sub {
-	my $m  = shift;
-    my $pv_choose;
-    if( scalar keys %{$m->{pv_choose}} > 1 ){
-        say "choose disk where to create partition: " . join(' ', keys %{$m->{pv_choose}});
-        chomp($pv_choose = <>);
-        #if($pv_choose =~ /\//){ $pv_choose =~ s/.*\/// }
-
-        open my $p,'-|',"find /dev/|grep $pv_choose";
-        while(<$p>){
-            chomp($m->{pv_next} = $_) and last;
-        }
-        close $p;
-
-        $pv_choose = s/(.*?)([0-9]+)/$1$2/;
-        say "\$1:$1 \$2:$2";
-        $m->{disk} = $1;
-        $m->{pv_next} = $2 + 1; $m->{pv_next} = $m->{disk} . $m->{pv_next};
-        #$m->{disk} = $m->{pv_choose}; $m->{disk} =~ s/[0-9]+//g;
-        #$m->{pv_next} = $pv_choose . (int($m->{pv_choose}->{"$pv_choose"}) + 1);
-    }
-=head1
-	open my $p,'-|', "fdisk -l $m->{disk}";
-    while(<$p>){
-        $m->{part_extended} = 1 if $_ =~ /Extended$/;
-        chomp( $m->{check_pv_next} = $_);
-    }
-    #open my $p,'-|', "fdisk -l $m->{disk} |tail -1 |cut -d' ' -f1";
-    #chomp( $m->{check_pv_next} = <$p> );
-    close $p;
-
-=cut
-	open my $p,'|-', "fdisk $m->{disk}" ;
-    for( @{$m->{fdisk_seq}} ){ my $s = print $p $_; say "status:".$s };
-	close $p;
-	system("partprobe $m->{disk}");
-
-    #open $p,'-|', "fdisk -l $m->{disk} |tail -1 |cut -d' ' -f1";
-    #chomp( $m->{pv_next} = <$p> );
-    #close $p;
-
-    #die "fdisk didn't create partition" if $m->{pv_next} eq $m->{check_pv_next};
-
-    $lv_create->($m);
-
-
-    #system("pvcreate $m->{pv_next}");
-    #system("vgextend $m->{vg} $m->{pv_next}");
-
-};
-
-my $lv_extend = sub {
-    my $m = shift;
-    system("lvextend -l +100%FREE /dev/$m->{vg}/$m->{lv}");
-	system("resize2fs /dev/$m->{vg}/$m->{lv}");
-};
-
-my $lvm_old = sub {
-    my( $dir, $size ) = @_;
-    my $dfh = `df -h $dir`; chomp $dfh;
-    die if $dfh !~ /$dir/;
-    if( defined $size and $size !~ /^\+[0-9]+(K|M|G|T|P)$/){ die system("perldoc $0") }
-
-    my $m = $map->( $dir, $size);
-    #die "cant create more LVM partitions on $m->{disk}" if $m->{pv_last} == 4; 
-    if( $m->{disk_size} eq $m->{lv_size} ){ die "$m->{lv} size same as $m->{disk} size, nothing to do" }
-    else { $create_part->($m,$size); sleep 1; say $lv_extend->($m) }
-    return $m;
-};
-
 my $lv_exist = sub {
-    my( $name, $type) = @_;
+    my( $name, $type ) = @_;
     my $cmd = $type . 's';
     open my $p,'-|', "$cmd --noheadings";
 
@@ -279,7 +187,6 @@ sub expand {
     die "$dir doesnt exist" unless -d $dir;
 
     my $m = $map->($dir, $size);
-    #say Dumper $m;;
 
     for(keys %{$m->{pv_choose}}){
         s/.*\/(.*)/$1/;
@@ -293,91 +200,10 @@ sub expand {
     }
 }
 
-expand('/B');
-#expand('/B','+1G');
-#say `lsblk`;
-#expand('/A','+9G');
+expand('/B','+1G');
 die;
 
 =head1
-    my( $name, $size ) = @_; 
-    my $partition = $part->( $disk->($name) , $size );
-
-#system('for i in `ls -tr  /sys/class/scsi_host/`;do echo "- - -" > /sys/class/scsi_host/$i/scan;done');
-    my $p = $disk->($d); # get disk partitions info
-    my $new =  $part->($p,'+5G'); # create new partition on disk
-    my $l = 
-    say Dumper $new;
-    say "\n\n" . `lsblk /dev/$d`;
-    die;
-}
-
-=cut
-
-my $lv_new = sub {
-    my($disk, $vg, $lv, $dir, $size) = @_;
-
-    mkpath($dir) unless -d $dir;
-
-    my $fdisk = sub {
-        my $disk = shift; 
-
-        my $fdisk_seq = ["n\n","e\n","\n","\n","\n","n\n","\n","\n","t\n","\n","8e\n","w\n"];
-        $fdisk_seq->[7] = "$size\n" if defined $size;
-
-        open my $p,'|-', "fdisk $disk" ;
-        for( @{$fdisk_seq} ){ print $p $_ };
-        close $p;
-
-        system("partprobe $disk");
-    };
-
-    $disk =~ s/[0-9]+//g;
-    $fdisk->($disk);
-    #if( $disk =~ /[0-9]$/ ){ $ch = $fdisk->($disk) } else { die "need partition not disk" }
-
-        open my $p,'-|',"find /dev/|grep $disk";
-        chomp(my $part = <$p>);
-        say "##" . $part;
-        close $p;
-        system("pvcreate $part");
-
-
-    #$ch = system("pvcreate $disk") unless $lv_exist->($disk,'pv');
-
-    my $lvm = {
-        vg  =>  sub{ 
-                    my $v = "vgextend $vg $part" if $lv_exist->($vg,'vg');
-                    $v = "vgcreate $vg $part" unless $lv_exist->($vg,'vg');
-                    return $v;
-                },
-        lv  =>  sub{
-                    my $lve = $lv_exist->($lv,'lv');
-                    if( defined $lve ){ 
-                        return "lvextend -l +100%FREE /dev/$vg/$lv && resize2fs /dev/$vg/$lv";
-                    } else {
-                        return "lvcreate -n $lv -l 100%FREE $vg && mkfs.ext4 /dev/$vg/$lv";
-                    }
-                },
-        };
-
-        system($lvm->{vg}->());
-        system($lvm->{lv}->());
-        system("mount /dev/$vg/$lv $dir");
-
-        #TODO: for expand
-        #  487  pvcreate /dev/sdh4
-        #    488  lsblk
-        #      489  vgextend vg_z6 /dev/sdh4
-        #        490  lvextend -l +100%FREE /dev/vg_z6 && resize2fs /dev/vg_z6/lv_nuc6
-        #          491  lvextend -l +100%FREE /dev/vg_z6/lv_nuc6 && resize2fs /dev/vg_z6/lv_nuc6
-        #
-        #
-#open STDOUT,'>&',$psss;
-};
-
-
-
 unless( defined $opt->{n} or defined $opt->{e} ){ 
     die system("perldoc $0");
 }
@@ -406,23 +232,6 @@ if(defined $opt->{n}){
     say Dumper $m;
     say `lsblk`;
 }
-
-
-
-
-=head1 NAME 
-
-lvextender - extend existing lv
-
-=head1 USAGE
-
-Extend lv mounted on /dir to full size of disk
-
-C<lvextender /dir>
-
-Extend lv mounted on /dir by 3G
-
-C<lvextender /dir +3G>
 
 =cut
 

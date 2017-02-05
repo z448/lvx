@@ -82,6 +82,7 @@ alias/bind for apt-cache search, apt-get install ..
 
 script to git clone when you'll connected/disconnected from home wifi
 
+get monofur font for linux (curl -LO 'http://dl.dafont.com/dl/?f=monofur')
 =cut
 __DATA__
 

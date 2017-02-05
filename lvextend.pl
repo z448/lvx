@@ -290,8 +290,8 @@ sub expand {
 
         my $l = {
             pv => $p->{path},
-            vg => $_->{vg},
-            lv => $_->{lv},
+            vg => $d->{vg},
+            lv => $d->{lv},
             dir => $dir,
         };
         return $lvm->($l);

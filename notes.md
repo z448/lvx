@@ -28,107 +28,61 @@ new( dir, disk, vg, lv, size? )
 
 ---
 
-$disk->('sdb',size?)
-$VAR1 = {
-          'path' => '/dev/sdb',
-          'name' => 'sdb',
-          'extended' => '/dev/sdb1',
-          'part' => [
-                      {
-                        'type' => 'Extended',
-                        'path' => '/dev/sdb1'
-                      },
-                      {
-                        'path' => '/dev/sdb5',
-                        'type' => 'LVM'
-                      },
-                      {
-                        'type' => 'LVM',
-                        'path' => '/dev/sdb6'
-                      }
-                    ]
-        };
-
-
----
-$map->('/A',size?)
-$VAR1 = {
-          'vg' => 'vg_a',
-          'disk_size' => ' 34G',
-          'lv_size' => ' 20G',
-          'dir' => '/A',
-          'lv' => 'lv_a',
-          'lv_path' => '/dev/mapper/vg_a-lv_a',
-          'disk' => '/dev/sdb',
-          'pv_choose' => {
-                           '/dev/sdb' => '6'
-                         },
-          'disks' => {
-                       '/dev/sdb' => '6'
-                     },
-          'pv' => [
-                    '/dev/sdb5',
-                    '/dev/sdb6'
-                  ]
-        };
-
-
----
-
+1..3
+/dev/sdc  49392123904
+/dev/sdd  21474836480
 $VAR1 = {
           '/A' => {
-                    'lv' => 'lv_a',
-                    'vg' => 'vg_a',
                     'disks' => {
-                                 'sdb' => {
+                                 'sdd' => {
                                             'part' => [
                                                         {
-                                                          'type' => 'Extended',
-                                                          'path' => '/dev/sdb1'
+                                                          'path' => '/dev/sdd1',
+                                                          'type' => 'Extended'
                                                         },
                                                         {
-                                                          'type' => 'LVM',
-                                                          'path' => '/dev/sdb5'
-                                                        },
-                                                        {
-                                                          'type' => 'LVM',
-                                                          'path' => '/dev/sdb6'
+                                                          'path' => '/dev/sdd5',
+                                                          'type' => 'LVM'
                                                         }
                                                       ],
-                                            'name' => 'sdb',
-                                            'extended' => '/dev/sdb1',
-                                            'path' => '/dev/sdb'
+                                            'path' => '/dev/sdd',
+                                            'name' => 'sdd',
+                                            'extended' => '/dev/sdd1'
                                           },
                                  'sdc' => {
                                             'part' => [
                                                         {
-                                                          'path' => '/dev/sdc1',
-                                                          'type' => 'Extended'
+                                                          'type' => 'Extended',
+                                                          'path' => '/dev/sdc1'
                                                         },
                                                         {
                                                           'path' => '/dev/sdc5',
                                                           'type' => 'LVM'
+                                                        },
+                                                        {
+                                                          'type' => 'LVM',
+                                                          'path' => '/dev/sdc6'
                                                         }
                                                       ],
-                                            'name' => 'sdc',
                                             'extended' => '/dev/sdc1',
+                                            'name' => 'sdc',
                                             'path' => '/dev/sdc'
                                           }
                                },
-                    'lv_path' => '/dev/mapper/vg_a-lv_a',
-                    'dd' => 'sdc',
                     'pv_choose' => {
-                                     '/dev/sdb' => '6'
+                                     '/dev/sdd' => '21474836480'
                                    },
-                    'disk_size' => ' 34G',
                     'dir' => '/A',
-                    'lv_size' => ' 20G',
+                    'lv_path' => '/dev/mapper/vg_a-lv_b',
+                    'vg' => 'vg_a',
                     'pv' => [
                               '/dev/sdb5',
                               '/dev/sdb6',
-                              '/dev/sdc5'
+                              '/dev/sdc5',
+                              '/dev/sdc6',
+                              '/dev/sdd5'
                             ],
-                    'disk' => '/dev/sdb'
+                    'lv' => 'lv_b'
                   }
         };
 

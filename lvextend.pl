@@ -56,20 +56,34 @@ my $map = sub {
             if( $vg eq $m{vg} ){ 
                 push @pv, $pv;
                 $pv =~ s/(.*?)([0-9]+)/$1$2/;
-                $pv_choose{"$1"} = $2 if $lv eq $m{lv};
-                $m{dd} = $1; $m{dd} =~ s[/dev/(.*)][$1];
-                $m{disks}->{"$1"} = $disk->($m{dd});
+
+                if( $lv eq $m{lv} ){
+                        chomp( $pv_choose{"$1"} = `lsblk -bdnl $1 --output SIZE` );
+                        my $d = $1; $d =~ s[/dev/(.*)][$1];
+                        $m{disk}->{"$1"} = $disk->($d);
+                    }
             }
         }
         $m{pv} = \@pv;
         close $p;
 
+        my %pv_size;
+        for( @pv ){
+            s[(.*)(\d+)$][$1$2]g; 
+            if(exists $pv_choose{"$1"}){ 
+                $pv_size{"$1"} += `lsblk -bdnl $1 --output SIZE`;
+            };
+        }
+        for( keys %pv_size ){
+            say "$_  $pv_size{$_}";
+            unless($pv_choose{$_} == $pv_size{$_}){ delete $pv_choose{$_} }
+        }
+
         $m{pv_choose} = \%pv_choose;
-        for(keys %pv_choose){ $m{disk} = $_ }
+        #for(keys %pv_choose){ $m{disk} = $_ }
+        #for(keys %pv_choose){ $m{disk} = $_ }
 
-        chomp( $m{disk_size} = `lsblk -dnl $m{disk} --output SIZE` );
-        chomp( $m{lv_size} = `lsblk -dnl $m{lv_path} --output SIZE` );
-
+        #chomp( $m{lv_size} = `lsblk -dnl $m{lv_path} --output SIZE` );
         #$m{pv_next} = $m{disk} . ($pv_choose{"$m{disk}"} + 1);
         #$m{pv_last} = $#pv + 1;
         #$m{fdisk_seq} = ["n\n","\n","\n","t\n","\n","8e\n","w\n"]; 
@@ -259,7 +273,7 @@ my $lvm = sub {
 
 sub expand {
     my ($dir, $size) = @_;
-    die unless -d $dir;
+    die "$dir doesnt exist" unless -d $dir;
 
     my $m = $map->($dir, $size);
     #$lvm->( $m, $size );

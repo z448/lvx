@@ -77,7 +77,8 @@ my $map = sub {
         }
         for( keys %pv_size ){
             say "$_  $pv_size{$_}";
-            unless($pv_choose{$_} == $pv_size{$_}){ delete $pv_choose{$_} }
+            #unless($pv_choose{$_} == $pv_size{$_}){ delete $pv_choose{$_} }
+            unless($pv_choose{$_} == $pv_size{$_}){ next  }
         }
 
         $m{pv_choose} = \%pv_choose;
@@ -246,20 +247,16 @@ my $lv_exist = sub {
 };
 
 my $lvm = sub {
-    #my($pv, $vg, $lv, $dir, $size) = @_;
     my $m = shift;
-
     mkpath($m->{dir}) unless -d $m->{dir};
 
-    system("pvcreate $m->{pv}");
-
     my $create = {
-        #  pv  =>  sub{
-        #           return "pvcreate $m->{pv}";
-        #       },
+        pv  =>  sub{
+                    my $p = "pvcreate $m->{pv}";
+                },
         vg  =>  sub{ 
-                    my $v = "vgextend $m->{vg} $part" if $lv_exist->("$m->{vg}",'vg');
-                    $v = "vgcreate $m->{vg} $part" unless $lv_exist->("$m->{vg}",'vg');
+                    my $v = "vgextend $m->{vg} $m->{pv}" if $lv_exist->("$m->{vg}",'vg');
+                    $v = "vgcreate $m->{vg} $m->{pv}" unless $lv_exist->("$m->{vg}",'vg');
                     return $v;
                 },
         lv  =>  sub{
@@ -271,12 +268,9 @@ my $lvm = sub {
                     }
                 },
         };
-
-        #system($create->{pv}->());
+        system($create->{pv}->());
         system($create->{vg}->());
         system($create->{lv}->());
-
-        say 'system('.'"mount /dev/'."$m->{vg}/$m->{lv} $m->{dir}".');';
         system("mount /dev/$m->{vg}/$m->{lv} $m->{dir}");
 };
 
@@ -285,7 +279,7 @@ sub expand {
     die "$dir doesnt exist" unless -d $dir;
 
     my $m = $map->($dir, $size);
-    #say Dumper $m; die;
+    #say Dumper $m;;
 
     for(keys %{$m->{pv_choose}}){
         s/.*\/(.*)/$1/;
@@ -294,13 +288,14 @@ sub expand {
         #say ">>>> before \$m->{pv} delete:" . Dumper $m;
         delete $m->{pv};
         $m->{pv} = $p->{path},
-        #say ">>>> after \$m->{pv} delete:" . Dumper $m;
-        return $lvm->($m);
+        say ">>>> after \$m->{pv} delete:" . Dumper $m;
+        my $ch = $lvm->($m);
     }
 }
 
-expand('/A','+1G');
-say `lsblk`;
+expand('/B');
+#expand('/B','+1G');
+#say `lsblk`;
 #expand('/A','+9G');
 die;
 

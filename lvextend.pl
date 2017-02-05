@@ -60,7 +60,7 @@ my $map = sub {
                 if( $lv eq $m{lv} ){
                         chomp( $pv_choose{"$1"} = `lsblk -bdnl $1 --output SIZE` );
                         my $d = $1; $d =~ s[/dev/(.*)][$1];
-                        $m{disk}->{"$1"} = $disk->($d);
+#                        $m{disk}->{"$1"} = $disk->($d);
                     }
             }
         }
@@ -97,11 +97,11 @@ my $fdisk = sub {
 
 };
 
-{
-    my $dir = { '/A' => $map->('/A') };
-    say Dumper $dir;
-}
-die;
+#{
+#    my $dir = { '/A' => $map->('/A') };
+#    say Dumper $dir;
+#}
+#die;
 =head1
 =cut
 
@@ -204,7 +204,6 @@ my $create_part = sub {
     #die "fdisk didn't create partition" if $m->{pv_next} eq $m->{check_pv_next};
 
     $lv_create->($m);
-    print Dumper $m;
 
 
     #system("pvcreate $m->{pv_next}");
@@ -225,7 +224,6 @@ my $lvm_old = sub {
     if( defined $size and $size !~ /^\+[0-9]+(K|M|G|T|P)$/){ die system("perldoc $0") }
 
     my $m = $map->( $dir, $size);
-    say Dumper $m;
     #die "cant create more LVM partitions on $m->{disk}" if $m->{pv_last} == 4; 
     if( $m->{disk_size} eq $m->{lv_size} ){ die "$m->{lv} size same as $m->{disk} size, nothing to do" }
     else { $create_part->($m,$size); sleep 1; say $lv_extend->($m) }
@@ -247,28 +245,36 @@ my $lv_exist = sub {
 };
 
 my $lvm = sub {
-    my($disk, $vg, $lv, $dir, $size) = @_;
-    mkpath($dir) unless -d $dir;
+    #my($pv, $vg, $lv, $dir, $size) = @_;
+    my $l = shift;
+
+    mkpath($l->{dir}) unless -d $l->{dir};
+
 
     my $lvm = {
+        pv  =>  sub{
+                    return "pvcreate $l->{pv}";
+                },
         vg  =>  sub{ 
-                    my $v = "vgextend $vg $part" if $lv_exist->($vg,'vg');
-                    $v = "vgcreate $vg $part" unless $lv_exist->($vg,'vg');
+                    my $v = "vgextend $l->{vg} $part" if $lv_exist->($l->{vg},'vg');
+                    $v = "vgcreate $l->{vg} $part" unless $lv_exist->($l->{vg},'vg');
                     return $v;
                 },
         lv  =>  sub{
-                    my $lve = $lv_exist->($lv,'lv');
+                    my $lve = $lv_exist->($l->{lv},'lv');
                     if( defined $lve ){ 
-                        return "lvextend -l +100%FREE /dev/$vg/$lv && resize2fs /dev/$vg/$lv";
+                        return "lvextend -l +100%FREE /dev/$l->{vg}/$l->{lv} && resize2fs /dev/$l->{vg}/$l->{lv}";
                     } else {
-                        return "lvcreate -n $lv -l 100%FREE $vg && mkfs.ext4 /dev/$vg/$lv";
+                        return "lvcreate -n $l->{lv} -l 100%FREE $l->{vg} && mkfs.ext4 /dev/$l->{vg}/$l->{lv}";
                     }
                 },
         };
 
+        system($lvm->{pv}->());
         system($lvm->{vg}->());
         system($lvm->{lv}->());
-        system("mount /dev/$vg/$lv $dir");
+        say 'system('.'"mount /dev/'."$l->{vg}/$l->{lv} $l->{dir}".');';
+        system("mount /dev/$l->{vg}/$l->{lv} $l->{dir}");
 
 };
 
@@ -276,10 +282,25 @@ sub expand {
     my ($dir, $size) = @_;
     die "$dir doesnt exist" unless -d $dir;
 
-#    my $DISK = $map->($dir, $size);
+    my $m = $map->($dir, $size);
+    for(keys %{$m->{pv_choose}}){
+        s/.*\/(.*)/$1/;
+        my $d = $disk->($_, $size);
+        my $p = $part->($d, $size);
+
+        my $l = {
+            pv => $p->{path},
+            vg => $_->{vg},
+            lv => $_->{lv},
+            dir => $dir,
+        };
+        return $lvm->($l);
+    }
 }
 
-say Dumper expand('/A','+9G');
+expand('/A','+1G');
+say `lsblk`;
+#expand('/A','+9G');
 die;
 
 =head1

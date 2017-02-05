@@ -5,6 +5,7 @@ use warnings;
 use strict;
 
 use Data::Dumper;
+use Data::Dump::Streamer;
 use File::Path qw( mkpath );
 use Getopt::Std;
 
@@ -46,8 +47,8 @@ my $map = sub {
     open my $pipe,"-|","df -h $dir";
     while(<$pipe>){
         next if $_ =~ /Filesystem/;
-        ( $m{lv_path}, $m{dir} ) = m[(^/.*?) .*($dir)$]g;
-        ( $m{vg}, $m{lv} ) = split(" ", `lvs $m{lv_path} --noheadings -o vg_name,lv_name`);
+        ( $m{fs}, $m{dir} ) = m[(^/.*?) .*($dir)$]g;
+        ( $m{vg}, $m{lv} ) = split(" ", `lvs $m{fs} --noheadings -o vg_name,lv_name`);
 
         my( @pv, %pv_choose )= ();
         open my $p,"-|","pvs -o pv_name,lv_name,vg_name";
@@ -235,7 +236,7 @@ my $lv_exist = sub {
     my $cmd = $type . 's';
     open my $p,'-|', "$cmd --noheadings";
 
-    my $exist;
+    my $exist = ();
     while(<$p>){ chomp($exist = $_) if $_ =~ /$name/ }
     close $p;
     if($exist){
@@ -246,36 +247,37 @@ my $lv_exist = sub {
 
 my $lvm = sub {
     #my($pv, $vg, $lv, $dir, $size) = @_;
-    my $l = shift;
+    my $m = shift;
 
-    mkpath($l->{dir}) unless -d $l->{dir};
+    mkpath($m->{dir}) unless -d $m->{dir};
 
+    system("pvcreate $m->{pv}");
 
-    my $lvm = {
-        pv  =>  sub{
-                    return "pvcreate $l->{pv}";
-                },
+    my $create = {
+        #  pv  =>  sub{
+        #           return "pvcreate $m->{pv}";
+        #       },
         vg  =>  sub{ 
-                    my $v = "vgextend $l->{vg} $part" if $lv_exist->($l->{vg},'vg');
-                    $v = "vgcreate $l->{vg} $part" unless $lv_exist->($l->{vg},'vg');
+                    my $v = "vgextend $m->{vg} $part" if $lv_exist->("$m->{vg}",'vg');
+                    $v = "vgcreate $m->{vg} $part" unless $lv_exist->("$m->{vg}",'vg');
                     return $v;
                 },
         lv  =>  sub{
-                    my $lve = $lv_exist->($l->{lv},'lv');
+                    my $lve = $lv_exist->($m->{lv},'lv');
                     if( defined $lve ){ 
-                        return "lvextend -l +100%FREE /dev/$l->{vg}/$l->{lv} && resize2fs /dev/$l->{vg}/$l->{lv}";
+                        return "lvextend -l +100%FREE /dev/$m->{vg}/$m->{lv} && resize2fs /dev/$m->{vg}/$m->{lv}";
                     } else {
-                        return "lvcreate -n $l->{lv} -l 100%FREE $l->{vg} && mkfs.ext4 /dev/$l->{vg}/$l->{lv}";
+                        return "lvcreate -n $m->{lv} -l 100%FREE $m->{vg} && mkfs.ext4 /dev/$m->{vg}/$m->{lv}";
                     }
                 },
         };
 
-        system($lvm->{pv}->());
-        system($lvm->{vg}->());
-        system($lvm->{lv}->());
-        say 'system('.'"mount /dev/'."$l->{vg}/$l->{lv} $l->{dir}".');';
-        system("mount /dev/$l->{vg}/$l->{lv} $l->{dir}");
+        #system($create->{pv}->());
+        system($create->{vg}->());
+        system($create->{lv}->());
 
+        say 'system('.'"mount /dev/'."$m->{vg}/$m->{lv} $m->{dir}".');';
+        system("mount /dev/$m->{vg}/$m->{lv} $m->{dir}");
 };
 
 sub expand {
@@ -283,18 +285,17 @@ sub expand {
     die "$dir doesnt exist" unless -d $dir;
 
     my $m = $map->($dir, $size);
+    #say Dumper $m; die;
+
     for(keys %{$m->{pv_choose}}){
         s/.*\/(.*)/$1/;
         my $d = $disk->($_, $size);
         my $p = $part->($d, $size);
-
-        my $l = {
-            pv => $p->{path},
-            vg => $d->{vg},
-            lv => $d->{lv},
-            dir => $dir,
-        };
-        return $lvm->($l);
+        #say ">>>> before \$m->{pv} delete:" . Dumper $m;
+        delete $m->{pv};
+        $m->{pv} = $p->{path},
+        #say ">>>> after \$m->{pv} delete:" . Dumper $m;
+        return $lvm->($m);
     }
 }
 

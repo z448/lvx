@@ -39,6 +39,22 @@ my $disk = sub {
     return \%d;
 };
 
+=head1
+#take $dir (/dir) return hashref with its $fs,$vg,$lv,%$disk
+# %$disk will be passed to $part->() to create partition on that disk
+
+$map  = {
+          'fs' => '/dev/mapper/vg_d-lv_d',
+          'disk' => {
+                      'sde' => 1,
+                      'sdd' => 1
+                    },
+          'lv' => 'lv_d',
+          'vg' => 'vg_d',
+          'dir' => '/B'
+        };
+=cut
+
 my $map = sub {
     my( $dir, $size ) = @_;
     my( %m, @m )= ();
@@ -48,43 +64,24 @@ my $map = sub {
         next if $_ =~ /Filesystem/;
         ( $m{fs}, $m{dir} ) = m[(^/.*?) .*($dir)$]g;
         ( $m{vg}, $m{lv} ) = split(" ", `lvs $m{fs} --noheadings -o vg_name,lv_name`);
-
-        my( @pv, %pv_choose )= ();
-        open my $p,"-|","pvs -o pv_name,lv_name,vg_name";
-        while(<$p>){
-            my ($pv,$lv,$vg) = split(" ", $_);
-            if( $vg eq $m{vg} ){ 
-                push @pv, $pv;
-                $pv =~ s/(.*?)([0-9]+)/$1$2/;
-
-                if( $lv eq $m{lv} ){
-                        chomp( $pv_choose{"$1"} = `lsblk -bdnl $1 --output SIZE` );
-                        my $d = $1; $d =~ s[/dev/(.*)][$1];
-#                        $m{disk}->{"$1"} = $disk->($d);
-                    }
-            }
-        }
-        $m{pv} = \@pv;
-        close $p;
-
-        my %pv_size;
-        for( @pv ){
-            s[(.*)(\d+)$][$1$2]g; 
-            if(exists $pv_choose{"$1"}){ 
-                $pv_size{"$1"} += `lsblk -bdnl $1 --output SIZE`;
-            };
-        }
-        for( keys %pv_size ){
-            say "$_  $pv_size{$_}";
-            #unless($pv_choose{$_} == $pv_size{$_}){ delete $pv_choose{$_} }
-            unless($pv_choose{$_} == $pv_size{$_}){ next  }
-        }
-
-        $m{pv_choose} = \%pv_choose;
     }
     close $pipe;
+
+    my( @pv, %disk ) = ();
+    open my $p,"-|","pvs -o pv_name,lv_name,vg_name";
+    while(<$p>){
+        my ($pv,$lv,$vg) = split(" ", $_);
+        if( $vg eq $m{vg} and $lv eq $m{lv} ){ 
+            s/.*\/(.*?)[0-9]+/$1/;
+            $m{disk}{$1} = 1;
+        }
+    }
+    close $p;
+
     return \%m;
 };
+
+say Dumper $map->('/B'); die;
 
 # create partition on disk with optional size
 my $part = sub {
@@ -182,6 +179,7 @@ my $lvm = sub {
         system("mount /dev/$m->{vg}/$m->{lv} $m->{dir}");
 };
 
+=head1
 sub expand {
     my ($dir, $size) = @_;
     die "$dir doesnt exist" unless -d $dir;
@@ -202,6 +200,7 @@ sub expand {
 
 expand('/B','+1G');
 die;
+=cut
 
 =head1
 unless( defined $opt->{n} or defined $opt->{e} ){ 

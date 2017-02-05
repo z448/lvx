@@ -85,9 +85,6 @@ script to git clone when you'll connected/disconnected from home wifi
 =cut
 __DATA__
 
-# setup dots
-perl -E 'if(-f "$ENV{HOME}/Documents/perls/setup"){ system("$ENV{HOME}/Documents/perls/setup ~/local/bin") }'
-
 # set vi mode on command line
 set -o vi
 

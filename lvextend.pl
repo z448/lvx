@@ -117,17 +117,17 @@ my $create_part = sub {
     return $p->{path};
 };
 
-
+# take $name of vg,lv or pv and its $type; returns 0 if doesnt exist
+# if type is lv and it exist, returns name of vg which it belongs to
 my $lv_exist = sub {
     my( $name, $type ) = @_;
     my $cmd = $type . 's';
     open my $p,'-|', "$cmd --noheadings";
 
-    my $exist = ();
+    my $exist = 0;
     while(<$p>){ chomp($exist = $_) if $_ =~ /$name/ }
     close $p;
-    if($exist){
-        $exist =~ s/\s+(.*?)\s+(.*?)\s.*/$1$2/;
+    if( $exist =~ /\s+(.*?)\s+(.*?)\s.*/ ){
         return $2 if $name eq $1;
     }
 };
@@ -163,33 +163,40 @@ my $lvm = sub {
 # say Dumper $map_dir->('/B','+1G');die;
  
 # take optional \@disks( disks on which /dir is already mounted by LVM ) that will be checked first and if they dont have required $size run refresh and find all disks on system with required minimum size
-=head1
 sub choose_disk {
     my( $disks, $size ) = @_
 
     for( @$disks ){
         $disk{name} = $_; 
-        $disk{size}chomp(`lsblk -dnl   -o SIZE` );
+        my @free = ();
+        open my $p,'-|',"lsblk -l /dev/$_ --noheadings -o NAME,SIZE";
+        while(<$p>){
+            if( /$_.*\ ([0-9]+)(.)/ ){ push @free, "$1$2" }
+        }
+        say for @free;
     }
 };
 
-=cut
 
+choose_disk('sdf');
 
 sub expand {
     my ($dir, $size, $disk, $vg, $lv ) = @_;
     die "$dir doesnt exist" unless -d $dir;
 
     my $m = $map_dir->($dir, $size);
-    $disk = $m->{disk}->[0] unless defined $disk;
+    $disk = $m->{disk}->[2] unless defined $disk;
+
     my $p = $create_part->($disk, $size);
     $m->{pv} = $p;
 
-    $m->{lv} = $lv if defined $lv;
     $m->{vg} = $vg if defined $vg;
+    
+    $m->{lv} = $lv if defined $lv;
+    my $lv_vgroup = $lv_exist->($m->{lv},'lv'); 
+    die "$lv belongs to $lv_vgroup" unless $m->{vg} eq $lv_vgroup;
+
     my $l = $lvm->($m);
 }
 
-expand(@ARGV);
-
-
+#expand(@ARGV);

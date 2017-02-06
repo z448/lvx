@@ -75,7 +75,7 @@ my $create_part = sub {
         my( $seq ) = @_;
         my $seen = {};
         for( @{$get_part->($disk)} ){ 
-            if( $_->{type} eq "Extended" ) { $part_extended = 1; return };
+            if( $seq =~ /e/ and $_->{type} eq "Extended" ) { $part_extended = 1; return };
             $seen->{"$_->{path}"} = $_->{type};
         }
 

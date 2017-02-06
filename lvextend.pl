@@ -15,47 +15,28 @@ my $opt = {};
 getopts('n:e:', $opt);
 
 
-# get hashref of exsisting $disk partitions
-my $disk = sub {
+# take $disk name ('sda'); return  hashref of exsisting (not only LVM) partitions..
+my $get_part = sub {
     my( $disk ) = @_;
     my( @p ) = ();
-    my %d = ( name => $disk, path => "/dev/$disk" );
+    return unless -b "/dev/$disk";
 
-    if(-b $d{path}){
-        open my $pipe,'-|',"fdisk -l /dev/$disk";
-        while(<$pipe>){ 
-            chomp; next unless $_ =~ /^\/dev\//;
-            if(/(^\/.*?[0-9]+) .* (.*)$/){ 
-                my %p = ();
-                $d{extended} = $1 if $2 eq "Extended";
-                $p{path} = $1;
-                $p{type} = $2;
-                push @p, {%p}; 
-            }
-        }; 
-        close $pipe;
-        $d{part} = \@p;
-    }
-    return \%d;
+    open my $pipe,'-|',"fdisk -l /dev/$disk";
+    while(<$pipe>){ 
+        chomp; next unless $_ =~ /^\/dev\//;
+        if(/(^\/.*?[0-9]+) .* (.*)$/){ 
+            my %p = ();
+            $p{path} = $1;
+            $p{type} = $2;
+            push @p, {%p}; 
+        }
+    }; 
+    close $pipe;
+    return \@p;
 };
 
-=head1
-#take $dir (/dir) return hashref with its $fs,$vg,$lv,%$disk
-# %$disk will be passed to $part->() to create partition on that disk
-
-$map  = {
-          'fs' => '/dev/mapper/vg_d-lv_d',
-          'disk' => {
-                      'sde' => 1,
-                      'sdd' => 1
-                    },
-          'lv' => 'lv_d',
-          'vg' => 'vg_d',
-          'dir' => '/B'
-        };
-=cut
-
-my $map = sub {
+# take $dir (/dir), optional $size ('+1G') return hashref with its $fs,$vg,$lv,%$disk
+my $get_dir = sub {
     my( $dir, $size ) = @_;
     my( %m, @m )= ();
 
@@ -72,8 +53,8 @@ my $map = sub {
     while(<$p>){
         my ($pv,$lv,$vg) = split(" ", $_);
         if( $vg eq $m{vg} and $lv eq $m{lv} ){ 
-            s/.*\/(.*?)[0-9]+/$1/;
-            $m{disk}{$1} = 1;
+            s/.*?(\/.*\/)(.*)[0-9]+/$1$2/;
+            $m{disk}{$2} = $1 . $2;
         }
     }
     close $p;
@@ -81,27 +62,31 @@ my $map = sub {
     return \%m;
 };
 
-say Dumper $map->('/B'); die;
+#say Dumper $get_dir->('/B'); die;
+#say Dumper $get_part->('sdd'); die;
 
 # create partition on disk with optional size
-my $part = sub {
-    my( $d, $size ) = @_;
+my $create_part = sub {
+    my( $disk, $size ) = @_;
+    my( $part_extended )= ();
 
     #run fdisk to create partition, return hasref of created partition
     my $create = sub {
-        my( $seq,$d ) = @_;
+        my( $seq ) = @_;
         my $seen = {};
-        for( @{$disk->($d->{name})->{part}} ){ $seen->{"$_->{path}"} = $_->{type} }
+        for( @{$get_part->($disk)} ){ 
+            $part_extended = 1 if $_->{type} eq "Extended";
+            $seen->{"$_->{path}"} = $_->{type};
+        }
 
-        open my $pipe,'|-', "fdisk $d->{path}";
+        open my $pipe,'|-', "fdisk /dev/$disk";
         for( @$seq ){ print $pipe $_ }; close $pipe;
-        system("partprobe $d->{path}"); # write chages with partprobe
+        system("partprobe /dev/$disk"); # write chages with partprobe
         
-        my $state = $disk->($d->{name})->{part};
-        my( $p ) = grep { ! exists $seen->{"$_->{path}"} } @$state;
-        $p->{number} = $p->{path}; $p->{number} =~ s/\/.*?([0-9]+)/$1/;
+        my( $part ) = grep { ! exists $seen->{"$_->{path}"} } @{$get_part->($disk)};
+        $part_extended = 1 if $part->{type} eq "Extended";
 
-        return $p;
+        return $part;
     };
 
     my $seq = {
@@ -111,31 +96,28 @@ my $part = sub {
     };
 
     # create extended partition if doesnt exist
-    unless( exists $d->{extended} ){
-        my $e = $create->($seq->{e},$d);
-        $d->{extended} = $e->{path}; 
-        ok( $e->{type} eq "Extended", 'create extended' );
-    }
+    
+    $create->($seq->{e}) unless defined $part_extended;
 
     #try to create logical partition...
     $seq->{l}->[2] = "$size\n" if defined $size;
-    my $p = $create->($seq->{l},$d);
-    ok( $p->{type} eq 'Linux', 'create logical part');
+    my $p = $create->($seq->{l});
 
     #...create primary partition if creating logical failed
     unless($p->{type} eq 'Linux'){
-        $p = undef;
         $seq->{p}->[4] = "$size\n" if defined $size;
-        $p = $create->($seq->{p},$d);
-        ok( $p->{type} eq 'Linux', 'create primary part');
+        $p = $create->($seq->{p});
     }
 
     # change partition type to LVM
     $seq->{t} = ["t\n","$p->{number}\n","8e\n","w\n"]; 
-    my $t = $create->($seq->{t},$d);
+    my $t = $create->($seq->{t});
+    die $! unless $t->{type} eq "LVM";
 
     return $p;
 };
+
+print Dumper $create_part->('sde','+1G'); die;
 
 my $lv_exist = sub {
     my( $name, $type ) = @_;
@@ -188,8 +170,8 @@ sub expand {
 
     for(keys %{$m->{pv_choose}}){
         s/.*\/(.*)/$1/;
-        my $d = $disk->($_, $size);
-        my $p = $part->($d, $size);
+        my $d = $get_part->($_, $size);
+        my $p = $create_part->($d, $size);
         #say ">>>> before \$m->{pv} delete:" . Dumper $m;
         delete $m->{pv};
         $m->{pv} = $p->{path},
@@ -201,40 +183,6 @@ sub expand {
 expand('/B','+1G');
 die;
 =cut
-
-=head1
-unless( defined $opt->{n} or defined $opt->{e} ){ 
-    die system("perldoc $0");
-}
-
-if(defined $opt->{n}){
-    my @new = split(',',$opt->{n});
-    my $disk = $new[0]; $disk =~ s/[0-9]//g;
-
-    my $lve = $lv_exist->($new[2],'lv');
-    if( defined $lve ){ die "[$new[2]] belongs to [$lve]" unless $lve eq $new[1] }
-    die "$new[0] doesnt exist" unless -b $disk;
-    die "cant create partition om $new[0], disk is assigned to $lv_exist->($new[0],'pv')" if $lv_exist->($new[0],'pv');
-
-    $lv_new->(@new);
-    #my $m = $map->('/big');
-
-    say `lsblk`;
-
-} elsif(defined $opt->{e}) {
-    my @extend = split(',',$opt->{e});
-    die "cant create partition om $extend[0], disk is assigned to $lv_exist->($extend[0],'pv')" if $lv_exist->($extend[0],'pv');
-
-    my $m = $lvm_old->(@extend);
-    $lv_extend->($m);
-
-    say Dumper $m;
-    say `lsblk`;
-}
-
-=cut
-
-
 
 __DATA__
 

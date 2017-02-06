@@ -79,8 +79,7 @@ $conf{arch} ;
 
 $write->();
 =head1 TODO
-#linux setup
-#
+add option to delete dots from bashrc
 
 
 alias/bind for apt-cache search, apt-get install ..

@@ -68,14 +68,14 @@ my $get_dir = sub {
 # create partition on disk with optional size
 my $create_part = sub {
     my( $disk, $size ) = @_;
-    my( $part_extended )= ();
+    my( $part_extended )= 0;
 
     #run fdisk to create partition, return hasref of created partition
     my $create = sub {
         my( $seq ) = @_;
         my $seen = {};
         for( @{$get_part->($disk)} ){ 
-            $part_extended = 1 if $_->{type} eq "Extended";
+            if( $_->{type} eq "Extended" ) { $part_extended = 1; return };
             $seen->{"$_->{path}"} = $_->{type};
         }
 
@@ -84,7 +84,7 @@ my $create_part = sub {
         system("partprobe /dev/$disk"); # write chages with partprobe
         
         my( $part ) = grep { ! exists $seen->{"$_->{path}"} } @{$get_part->($disk)};
-        $part_extended = 1 if $part->{type} eq "Extended";
+        if( $part->{type} eq "Extended" ){ $part_extended = 1 }
 
         return $part;
     };
@@ -97,27 +97,29 @@ my $create_part = sub {
 
     # create extended partition if doesnt exist
     
-    $create->($seq->{e}) unless defined $part_extended;
+    $create->($seq->{e}) unless $part_extended == 1;
 
     #try to create logical partition...
     $seq->{l}->[2] = "$size\n" if defined $size;
     my $p = $create->($seq->{l});
 
     #...create primary partition if creating logical failed
-    unless($p->{type} eq 'Linux'){
+    unless( defined $p->{type} ){
         $seq->{p}->[4] = "$size\n" if defined $size;
         $p = $create->($seq->{p});
     }
+    #die $! unless $p->{type} eq "Linux";
 
     # change partition type to LVM
     $seq->{t} = ["t\n","$p->{number}\n","8e\n","w\n"]; 
     my $t = $create->($seq->{t});
-    die $! unless $t->{type} eq "LVM";
+    say ">>>" . $t;
+    #die $! unless $t->{type} eq "LVM";
 
-    return $p;
+    return $t;
 };
 
-print Dumper $create_part->('sde','+1G'); die;
+print Dumper $create_part->('sdf','+1G'); die;
 
 my $lv_exist = sub {
     my( $name, $type ) = @_;

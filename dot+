@@ -8,12 +8,14 @@ use File::Copy;
 use Data::Dumper;
 
 chomp(my $arch = `uname -n`);
+
+my $id = $0; $id =~ s[.*/(.*)][$1];
 # find package which cmd belongs to "dpkg -S cmd"
 my $conf = sub {
     my $c = {};
 
     $c = {
-        id => "#github.com/z448/perls/$0",
+        id => "#github.com/z448/perls/$id",
         dotfile => "$ENV{HOME}/.bashrc",
         apps => {
             debian =>  [ 'xsel', 'xclip', 'x11-xkb-utils', 'x11-apps' ],
@@ -77,14 +79,20 @@ $conf{arch} ;
 
 $write->();
 =head1 TODO
+#linux setup
+#
+
 
 alias/bind for apt-cache search, apt-get install ..
 
 script to git clone when you'll connected/disconnected from home wifi
 
-get monofur font for linux (curl -LO 'http://dl.dafont.com/dl/?f=monofur')
 =cut
 __DATA__
+
+#get monofur font for linux
+
+alias init_setup='mkdir -p ~/.fonts; curl -Lo ~/.fonts/my.zip "http://dl.dafont.com/dl/?f=monofur"; cd ~/.fonts && unzip -o my.zip && rm my.zip && fc-cache -f -v && cd -';
 
 # set vi mode on command line
 set -o vi

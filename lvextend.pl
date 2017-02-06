@@ -35,7 +35,7 @@ my $get_part = sub {
 };
 
 # take $dir (/dir), optional $size ('+1G') return hashref with its $fs,$vg,$lv,%$disk
-my $get_dir = sub {
+my $map_dir = sub {
     my( $dir, $size ) = @_;
     my( %m, @m )= ();
 
@@ -165,7 +165,7 @@ sub expand {
     my ($dir, $size) = @_;
     die "$dir doesnt exist" unless -d $dir;
 
-    my $m = $get_dir->($dir, $size);
+    my $m = $map_dir->($dir, $size);
     $m->{dir} = $dir;
     $m->{size} = $size if defined size;
 

@@ -52,10 +52,11 @@ my $map_dir = sub {
     while(<$p>){
         my ($pv,$lv,$vg) = split(" ", $_);
         if( $vg eq $m{vg} and $lv eq $m{lv} ){ 
-            s/.*?(\/.*\/)(.*)[0-9]+/$1$2/;
-            $m{disk}{$2} = $1 . $2;
+            s/.*?\/.*\/(.*)[0-9]+/$1/;
+            $disk{$1} = 1;
         }
     }
+    @{$m{disk}} = grep{ /./ } keys %disk;
     close $p;
 
     return \%m;
@@ -111,12 +112,11 @@ my $create_part = sub {
     # change partition type to LVM
     $seq->{t} = ["t\n","$p->{number}\n","8e\n","w\n"]; 
     my $t = $create->($seq->{t});
-    die $! unless $t->{type} eq "LVM";
+    #die $! unless $->{type} eq "LVM";
 
-    return $t;
+    return $p->{path};
 };
 
-$create_part->('sde','+1G'); die;
 
 my $lv_exist = sub {
     my( $name, $type ) = @_;
@@ -160,30 +160,37 @@ my $lvm = sub {
         system("mount /dev/$m->{vg}/$m->{lv} $m->{dir}");
 };
 
+# say Dumper $map_dir->('/B','+1G');die;
+ 
+# take optional \@disks( disks on which /dir is already mounted by LVM ) that will be checked first and if they dont have required $size run refresh and find all disks on system with required minimum size
 =head1
+sub choose_disk {
+    my( $disks, $size ) = @_
+
+    for( @$disks ){
+        $disk{name} = $_; 
+        $disk{size}chomp(`lsblk -dnl   -o SIZE` );
+    }
+};
+
+=cut
+
+
 sub expand {
-    my ($dir, $size) = @_;
+    my ($dir, $size, $disk, $vg, $lv ) = @_;
     die "$dir doesnt exist" unless -d $dir;
 
     my $m = $map_dir->($dir, $size);
-    $m->{dir} = $dir;
-    $m->{size} = $size if defined size;
+    $disk = $m->{disk}->[0] unless defined $disk;
+    my $p = $create_part->($disk, $size);
+    $m->{pv} = $p;
 
-    for(keys %{$m->{pv_choose}}){
-        s/.*\/(.*)/$1/;
-        my $d = $get_part->($_, $size);
-        my $p = $create_part->($d, $size);
-        #say ">>>> before \$m->{pv} delete:" . Dumper $m;
-        delete $m->{pv};
-        $m->{pv} = $p->{path},
-        say ">>>> after \$m->{pv} delete:" . Dumper $m;
-        my $ch = $lvm->($m);
-    }
+    $m->{lv} = $lv if defined $lv;
+    $m->{vg} = $vg if defined $vg;
+    my $l = $lvm->($m);
 }
 
-expand('/B','+1G');
-die;
-=cut
+expand(@ARGV);
 
 __DATA__
 

@@ -164,28 +164,36 @@ my $lvm = sub {
  
 # take optional \@disks( disks on which /dir is already mounted by LVM ) that will be checked first and if they dont have required $size run refresh and find all disks on system with required minimum size
 sub choose_disk {
-    my( $disks, $size ) = @_
-
-    for( @$disks ){
-        $disk{name} = $_; 
-        my @free = ();
-        open my $p,'-|',"lsblk -l /dev/$_ --noheadings -o NAME,SIZE";
+    my( $disks, $size ) = @_;
+    my %size = ();
+     
+    for my $d( @$disks ){
+        $size{$d} = 0; 
+        my @size = ();
+        open my $p,'-|',"lsblk -lb /dev/$d --noheadings -o NAME,SIZE";
         while(<$p>){
-            if( /$_.*\ ([0-9]+)(.)/ ){ push @free, "$1$2" }
+            # .*([0-9]+)/ ){ push @size, int($1) }
+            split()
+            if( /$d.*\ ([0-9]+)/ ){ push @size, int($1) }
         }
-        say for @free;
+        my $disk_size = shift @size;
+        my $used = 0;
+        for(@size){ $used += $_ } 
+        $size{$d} = int($disk_size - $used);
     }
+    say Dumper \%size;die;
 };
 
 
-choose_disk('sdf');
 
 sub expand {
     my ($dir, $size, $disk, $vg, $lv ) = @_;
-    die "$dir doesnt exist" unless -d $dir;
+    #die "$dir doesnt exist" unless -d $dir;
 
     my $m = $map_dir->($dir, $size);
-    $disk = $m->{disk}->[2] unless defined $disk;
+    choose_disk( $m->{disk}, $size ) unless defined $disk;
+    #$disk = $m->{disk}->[2] unless defined $disk;
+    #choose_disk('sdf');
 
     my $p = $create_part->($disk, $size);
     $m->{pv} = $p;
@@ -199,4 +207,4 @@ sub expand {
     my $l = $lvm->($m);
 }
 
-#expand(@ARGV);
+expand(@ARGV);

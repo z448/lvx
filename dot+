@@ -96,6 +96,9 @@ alias init_setup='mkdir -p ~/.fonts; curl -Lo ~/.fonts/my.zip "http://dl.dafont.
 # set vi mode on command line
 set -o vi
 
+# disable freeze in terminal 
+stty -ixon
+
 # set vi as default editor
 export EDITOR=vi
 

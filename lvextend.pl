@@ -168,7 +168,9 @@ sub expand {
     my ($dir, $size) = @_;
     die "$dir doesnt exist" unless -d $dir;
 
-    my $m = $map->($dir, $size);
+    my $m = $get_dir->($dir, $size);
+    $m->{dir} = $dir;
+    $m->{size} = $size if defined size;
 
     for(keys %{$m->{pv_choose}}){
         s/.*\/(.*)/$1/;

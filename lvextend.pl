@@ -5,7 +5,6 @@ use warnings;
 use strict;
 
 use Data::Dumper;
-use Data::Dump::Streamer;
 use File::Path qw( mkpath );
 use Getopt::Std;
 
@@ -62,29 +61,30 @@ my $get_dir = sub {
     return \%m;
 };
 
-#say Dumper $get_dir->('/B'); die;
-#say Dumper $get_part->('sdd'); die;
-
 # create partition on disk with optional size
 my $create_part = sub {
     my( $disk, $size ) = @_;
-    my( $part_extended )= 0;
+    my $part_extended = "0";
 
     #run fdisk to create partition, return hasref of created partition
     my $create = sub {
         my( $seq ) = @_;
+
         my $seen = {};
         for( @{$get_part->($disk)} ){ 
-            if( $seq->[1] =~ /e/ and $_->{type} eq "Extended" ) { $part_extended = 1; return };
+            $part_extended = "1" if $_->{type} eq "Extended";
             $seen->{"$_->{path}"} = $_->{type};
         }
+        return if $seq->[1] =~ /e/ and $part_extended eq "1";
 
         open my $pipe,'|-', "fdisk /dev/$disk";
         for( @$seq ){ print $pipe $_ }; close $pipe;
         system("partprobe /dev/$disk"); # write chages with partprobe
         
+        return if $seq->[0] =~ /t/; # return if changing part to LVM
         my( $part ) = grep { ! exists $seen->{"$_->{path}"} } @{$get_part->($disk)};
-        if( $part->{type} eq "Extended" ){ $part_extended = 1 }
+        if( $part->{type} eq "Extended" ) { $part_extended = "1" }
+        $part->{number} = $part->{path}; $part->{number} =~ s/\/.*?([0-9]+)/$1/;
 
         return $part;
     };
@@ -96,30 +96,27 @@ my $create_part = sub {
     };
 
     # create extended partition if doesnt exist
-    
-    $create->($seq->{e}) unless $part_extended == 1;
+    $create->($seq->{e}) unless $part_extended eq "1";
 
     #try to create logical partition...
     $seq->{l}->[2] = "$size\n" if defined $size;
     my $p = $create->($seq->{l});
 
     #...create primary partition if creating logical failed
-    unless( defined $p->{type} ){
+    unless( $p->{type} eq "Linux" ){
         $seq->{p}->[4] = "$size\n" if defined $size;
         $p = $create->($seq->{p});
     }
-    #die $! unless $p->{type} eq "Linux";
 
     # change partition type to LVM
     $seq->{t} = ["t\n","$p->{number}\n","8e\n","w\n"]; 
     my $t = $create->($seq->{t});
-    say ">>>" . $t;
-    #die $! unless $t->{type} eq "LVM";
+    die $! unless $t->{type} eq "LVM";
 
     return $t;
 };
 
-print Dumper $create_part->('sdf','+1G'); die;
+$create_part->('sde','+1G'); die;
 
 my $lv_exist = sub {
     my( $name, $type ) = @_;

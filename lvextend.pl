@@ -164,34 +164,49 @@ my $lvm = sub {
  
 # take optional \@disks( disks on which /dir is already mounted by LVM ) that will be checked first and if they dont have required $size run refresh and find all disks on system with required minimum size
 my $choose_disk = sub {
-    my( $disks,$req_size ) = @_;
     my %unit = ( k => 1, M => 2, G => 3, T => 4, P => 5 );
-
-    $req_size =~ s/\+?([0-9]+)(k|M|G|T|P)/$1$2/;
-    $req_size = $1 * ( 1024 ** $unit{$2} );
-    say "\$req_size:" . $req_size;
     
-    my( %size, @req_disk ) = ();
-    for my $disk( @$disks ){
-        open my $p,'-|',"lsblk -lbd /dev/$disk --noheadings -o NAME,SIZE";
+    my $get_disk = sub {
+        my( $disks,$req_size ) = @_;
 
-        my @size = ();
-        while(<$p>){
-            if( /^$disk.*\ ([0-9]+)$/ ){ push @size, $1 }
+        my( %size, @req_disk ) = ();
+    
+        $req_size =~ s/\+?([0-9]+)(k|M|G|T|P)/$1$2/;
+        $req_size = $1 * ( 1024 ** $unit{$2} );
+
+        for my $disk( @$disks ){
+            open my $p,'-|',"lsblk -lbd  --noheadings -o NAME,SIZE";  
+            # todo: get all disks compute size for all disks
+            open my $p,'-|',"lsblk -lb --noheadings -o NAME,SIZE";
+            #open my $p,'-|',"lsblk -lbd /dev/$disk --noheadings -o NAME,SIZE";
+
+            my @size = ();
+            while(<$p>){
+                if( /^$disk.*\ ([0-9]+)$/ ){ push @size, $1 }
+            }
+            close $p;
+
+            $size{$disk} = shift @size;
+            for( @size ){ $size{$disk} -= $_ }
+            push @req_disk, $disk if $size{$disk} >= $req_size;
         }
-        close $p;
+        return \@req_disk;
+    };
 
-        $size{$disk} = shift @size;
-        for( @size ){ $size{$disk} -= $_ }
-        push @req_disk, $disk if $size{$disk} >= $req_size;
-        return $req_disk[0] if $#req_disk == 0;
+    my $disks = $get_disk->( $_[0],$_[1] );
+    unless( @$disks ){
+        # todo: check if for loop works on virtual box too
+        my $scan = system(qq|for i in `ls -tr  /sys/class/scsi_host/`;do echo "- - -" > /sys/class/scsi_host/\$i/scan;done|);
+        say "\$scan:".$scan;
+        $disks = $get_disk->( $_[0],$_[1] );
+        return unless defined $disks->[0];
     }
-    print "choose disk: ";
-    my $i = 0;
-    for( @req_disk ){ say "$i| $_" };
-    my $input = <STDIN>;
 
-    return $req_disk[$input];
+    return $disks->[0] if $#{$disks} == 0; #return $disk if there is only one disk 
+    print "choose disk: " . join(' ', @$disks) . "\n";
+    chomp(my $disk = <STDIN>);
+    ($disk) = grep{ $disk eq $_ } @$disks; 
+    return $disk;
 };
 
 sub expand {

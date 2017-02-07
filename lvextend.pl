@@ -183,7 +183,7 @@ sub choose_disk {
         
         return $_ if scalar keys %hash == 1 and $size($disk} >= $size;
         for( keys %size ){
-        	if( $size($_} >= $size ){
+        	if( $size($_} >= $size ){ return $_ }
         		
         	
         	

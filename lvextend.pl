@@ -169,7 +169,7 @@ sub choose_disk {
     my %unit = ( k => 1, M => 2, G => 3, T => 4, P => 5 );
 
     $size =~ s/([0-9]+)(M|G|T|P)/$1$2/;
-    $size = $1 / ( 1024 * %unit{$2} );
+    $size = $1 * ( 1024 ** %unit{$2} );
     
     my %size;
     for my $disk( @$disks ){

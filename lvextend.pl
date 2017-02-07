@@ -165,11 +165,12 @@ my $lvm = sub {
 # take optional \@disks( disks on which /dir is already mounted by LVM ) that will be checked first and if they dont have required $size run refresh and find all disks on system with required minimum size
 sub choose_disk {
     my( $disks, $size ) = @_;
-    my %unit = ( M => 1000000,
-        G => 1000000000, T => 1000000000 );
-    $size =~ s/([0-9]+)(M|G|T)/$1$2/;
-    $size = int($1 . $unit{$2});
-    say $size;
+    
+    my %unit = ( k => 1, M => 2, G => 3, T => 4, P => 5 );
+
+    $size =~ s/([0-9]+)(M|G|T|P)/$1$2/;
+    $size = $1 / ( 1024 * %unit{$2} );
+    
     my %size;
     for my $disk( @$disks ){
         open my $p,'-|',"lsblk -lb /dev/$disk --noheadings -o NAME,SIZE";

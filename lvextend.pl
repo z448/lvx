@@ -164,29 +164,32 @@ my $lvm = sub {
  
 # take optional \@disks( disks on which /dir is already mounted by LVM ) that will be checked first and if they dont have required $size run refresh and find all disks on system with required minimum size
 sub choose_disk {
-    my( $disks, $size ) = @_;
-    
+    my( $disks,$req_size ) = @_;
     my %unit = ( k => 1, M => 2, G => 3, T => 4, P => 5 );
 
-    $size =~ s/\+?([0-9]+)(M|G|T|P)/$1$2/;
-    $size = $1 * ( 1024 ** $unit{$2} );
+    $req_size =~ s/\+?([0-9]+)(M|G|T|P)/$1$2/;
+    $req_size = $1 * ( 1024 ** $unit{$2} );
     
-    my $get_disk = sub {
-        my %size;
-        for my $disk( @$disks ){
-            open my $p,'-|',"lsblk -ld /dev/$disk --noheadings -o NAME,SIZE";
-            my @size;
-            while(<$p>){
-                if( /^$disk.*? +([0-9]+)$/ ){ push @size, $1 * 1 }
-            }
-            close $p;
-            $size{$disk} = shift @size;
-            for( @size ){ $size{$disk} -= $_ }
+    my( %size, @req_disk ) = ();
+    for my $disk( @$disks ){
+        open my $p,'-|',"lsblk -ld /dev/$disk --noheadings -o NAME,SIZE";
+
+        my @size;
+        while(<$p>){
+            if( /^$disk.*? +([0-9]+)$/ ){ push @size, $1 * 1 }
         }
-        say Dumper \%size;
-        #return \%size;
-    };
-    $get_disk->();die;
+        close $p;
+
+        $size{$disk} = shift @size;
+        for( @size ){ $size{$disk} -= $_ }
+        push @req_disk, $disk if $size{$disk} >= $req_size;
+        return $req_disk[0] if $#req_disk == 0;
+    }
+    print "choose disk: ";
+    my $i = 0;
+    for( @req_disk ){ say $i . ' ' . $_; $i++ }
+    $i = <>;
+    return $req_disk[$i];
 =head1
     return $_ if scalar keys %hash == 1 and $size($disk} >= $size;
     my @choose = ();
@@ -213,7 +216,9 @@ sub expand {
     #die "$dir doesnt exist" unless -d $dir;
 
     my $m = $map_dir->($dir, $size);
-    say Dumper choose_disk( $m->{disk}, $size ) unless defined $disk;
+    $disk = choose_disk( $m->{disk}, $size ) unless defined $disk;
+    #system(qq{for i in `ls -tr  /sys/class/scsi_host/`;do echo "- - -" > /sys/class/scsi_host/\$i/scan;done});
+
     die;
     #$disk = $m->{disk}->[2] unless defined $disk;
     #choose_disk('sdf');

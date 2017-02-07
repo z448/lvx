@@ -165,23 +165,22 @@ my $lvm = sub {
 # take optional \@disks( disks on which /dir is already mounted by LVM ) that will be checked first and if they dont have required $size run refresh and find all disks on system with required minimum size
 sub choose_disk {
     my( $disks, $size ) = @_;
-    my %size = ();
-     
-    for my $d( @$disks ){
-        $size{$d} = 0; 
-        my @size = ();
-        open my $p,'-|',"lsblk -lb /dev/$d --noheadings -o NAME,SIZE";
+    my %unit = ( M => 1000000,
+        G => 1000000000, T => 1000000000 );
+    $size =~ s/([0-9]+)(M|G|T)/$1$2/;
+    $size = int($1 . $unit{$2});
+    say $size;
+    my %size;
+    for my $disk( @$disks ){
+        open my $p,'-|',"lsblk -lb /dev/$disk --noheadings -o NAME,SIZE";
+        my @size;
         while(<$p>){
-            # .*([0-9]+)/ ){ push @size, int($1) }
-            split()
-            if( /$d.*\ ([0-9]+)/ ){ push @size, int($1) }
+            if( /^$disk.*? +([0-9]+)$/ ){ push @size, $1 }
         }
-        my $disk_size = shift @size;
-        my $used = 0;
-        for(@size){ $used += $_ } 
-        $size{$d} = int($disk_size - $used);
+        $size{$disk} = shift @size;
+        for( @size ){ $size{$disk} -= $_ }
     }
-    say Dumper \%size;die;
+    return \%size;
 };
 
 
@@ -191,7 +190,8 @@ sub expand {
     #die "$dir doesnt exist" unless -d $dir;
 
     my $m = $map_dir->($dir, $size);
-    choose_disk( $m->{disk}, $size ) unless defined $disk;
+    say Dumper choose_disk( $m->{disk}, $size ) unless defined $disk;
+    die;
     #$disk = $m->{disk}->[2] unless defined $disk;
     #choose_disk('sdf');
 

@@ -171,19 +171,31 @@ sub choose_disk {
     $size =~ s/\+?([0-9]+)(M|G|T|P)/$1$2/;
     $size = $1 * ( 1024 ** $unit{$2} );
     
-    my %size;
-    for my $disk( @$disks ){
-        open my $p,'-|',"lsblk -lb /dev/$disk --noheadings -o NAME,SIZE";
-        my @size;
-        while(<$p>){
-            if( /^$disk.*? +([0-9]+)$/ ){ push @size, $1 * 1 }
+    my $get_disk = sub {
+        my %size;
+        for my $disk( @$disks ){
+            open my $p,'-|',"lsblk -ld /dev/$disk --noheadings -o NAME,SIZE";
+            my @size;
+            while(<$p>){
+                if( /^$disk.*? +([0-9]+)$/ ){ push @size, $1 * 1 }
+            }
+            close $p;
+            $size{$disk} = shift @size;
+            for( @size ){ $size{$disk} -= $_ }
         }
-        $size{$disk} = shift @size;
-        for( @size ){ $size{$disk} -= $_ }
-        
-        return $_ if scalar keys %hash == 1 and $size($disk} >= $size;
-        for( keys %size ){
-        	if( $size($_} >= $size ){ return $_ }
+        say Dumper \%size;
+        #return \%size;
+    };
+    $get_disk->();die;
+=head1
+    return $_ if scalar keys %hash == 1 and $size($disk} >= $size;
+    my @choose = ();
+    for( keys %size ){
+        if( $size{$_} >= $size ){ push @choose, $_ }
+    }
+        else( system( qq{for i in `ls -tr  /sys/class/scsi_host/`;do echo "- - -" > /sys/class/scsi_host/\$i/scan;done} ) )
+    }
+
         		
         	
         	
@@ -191,6 +203,7 @@ sub choose_disk {
     }
 
     return \%size;
+=cut
 };
 
 

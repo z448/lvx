@@ -169,18 +169,20 @@ sub choose_disk {
     my %unit = ( k => 1, M => 2, G => 3, T => 4, P => 5 );
 
     $size =~ s/\+?([0-9]+)(M|G|T|P)/$1$2/;
-    $size = $1 * ( 1024 ** %unit{$2} );
+    $size = $1 * ( 1024 ** $unit{$2} );
     
     my %size;
     for my $disk( @$disks ){
         open my $p,'-|',"lsblk -lb /dev/$disk --noheadings -o NAME,SIZE";
         my @size;
         while(<$p>){
-            if( /^$disk.*? +([0-9]+)$/ ){ push @size, $1 }
+            if( /^$disk.*? +([0-9]+)$/ ){ push @size, $1 * 1 }
         }
         $size{$disk} = shift @size;
         for( @size ){ $size{$disk} -= $_ }
+        say "$size $size{$disk}";
     }
+
     return \%size;
 };
 

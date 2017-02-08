@@ -157,7 +157,7 @@ my $lvm = sub {
         system($create->{pv}->());
         system($create->{vg}->());
         system($create->{lv}->());
-        system("mount /dev/$m->{vg}/$m->{lv} $m->{dir}");
+        system("mount /dev/$m->{v}/$m->{lv} $m->{dir}");
 };
 
 # say Dumper $map_dir->('/B','+1G');die;
@@ -182,29 +182,22 @@ my $choose_disk = sub {
             }
         }
         close $p;
-        #for my $disk( keys %size ){ say ">>>$disk $size{$disk}" }; die;
 
         for my $disk( keys %size ){
-            #open my $p,'-|',"lsblk -lbd  --noheadings -o NAME,SIZE";  
-            # todo: get all disks compute size for all disks
-            #open my $p,'-|',"lsblk -lb --noheadings -o NAME,SIZE";
             my @size = ();
             open $p,'-|',"lsblk -lb /dev/$disk --noheadings -o NAME,SIZE";
             while(<$p>){
                 if( /$disk[0-9]+\ +([0-9]+)$/ ){ push @size, $1 }
-                #if( /^$disk.*\ ([0-9]+)$/ ){ push @size, $1 if =~ /$disk/ }
             }
             for( @size ){ $size{$disk} -= $_ }
             push @req_disk, $disk if $size{$disk} >= $req_size;
             close $p;
         }
-            #$size{$disk} = shift @size;
         return \@req_disk;
     };
 
     my $disks = $get_disk->( $_[0],$_[1] );
     unless( @$disks ){
-        # todo: check if for loop works on virtual box too
         system(qq|for i in `ls -tr  /sys/class/scsi_host/`;do echo "- - -" > /sys/class/scsi_host/\$i/scan;done|);
         say "scannin for new disks...";
         $disks = $get_disk->( $_[0],$_[1] );
@@ -219,25 +212,35 @@ my $choose_disk = sub {
 };
 
 sub expand {
-    my ($dir, $size, $disk, $vg, $lv ) = @_;
-    #die "$dir doesnt exist" unless -d $dir;
+    my ($dir, $size, $vg, $lv ) = @_;
+    #my ($dir, $size, $disk, $vg, $lv ) = @_;
+    unless( defined $vg ){ die "dir doesnt exist" unless -d $dir }
 
-    my $m = $map_dir->($dir);
-    $disk = $choose_disk->( $size ) unless defined $disk;
-    say "creating partition on [$disk]";
+    my $m = $map_dir->($dir) unless defined $vg;
+    my $disk = $choose_disk->( $size );
     my $p = $create_part->($disk, $size);
     $m->{pv} = $p;
 
     $m->{vg} = $vg if defined $vg;
-    
     $m->{lv} = $lv if defined $lv;
-    my $lv_vgroup = $lv_exist->($m->{lv},'lv'); 
-    die "$lv belongs to $lv_vgroup" unless $m->{vg} eq $lv_vgroup;
+    my $lv_group = $lv_exist->($m->{lv},'lv'); 
+    #say "\$lv_group: $lv_group"; die;
+
+    #if( defined $lv_group and ($m->{vg} ne $lv_group) ){ die "$lv belongs to $lv_group" }
+
     my $l = $lvm->($m);
     say "[$l]";
-=head1
-=cut
 }
 
 
 expand(@ARGV);
+
+=head1 NAME
+
+lvx - extend mountpoin on LVM partition
+
+=head1 USAGE
+
+
+
+=cut

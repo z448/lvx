@@ -157,7 +157,8 @@ my $lvm = sub {
         system($create->{pv}->());
         system($create->{vg}->());
         system($create->{lv}->());
-        system("mount /dev/$m->{v}/$m->{lv} $m->{dir}");
+        #todo 160: dont mount unless creating new
+        system("mount /dev/$m->{vg}/$m->{lv} $m->{dir}");
 };
 
 # say Dumper $map_dir->('/B','+1G');die;
@@ -211,28 +212,49 @@ my $choose_disk = sub {
     return $disk;
 };
 
+# 
 sub expand {
     my ($dir, $size, $vg, $lv ) = @_;
-    #my ($dir, $size, $disk, $vg, $lv ) = @_;
-    unless( defined $vg ){ die "dir doesnt exist" unless -d $dir }
 
-    my $m = $map_dir->($dir) unless defined $vg;
+    # need to initialize empty hashref in case we're creating /dir,vg,lv because $map_dir->() wont run
+    my $m = {};
+
+    # extending /dir space; dies if dir doesnt exist because  $map has no dir to map
+    die "$dir doesnt exist"  unless -d $dir;
+    $m = $map_dir->($dir) unless defined $vg; # dont map because we're creating new /dir,vg,lv 
+
+    # creating/mounting new /dir on existing/new vg,lv; dont die, create new /dir because we're not expanding
+    mkpath $dir unless -d $dir;
+
+    # find disks, if there is some with enough free space
     my $disk = $choose_disk->( $size );
+    die "there is no disk to expand $dir $size" unless $disk;
+
+    # create partition on disk with optional size (if no size provided, full disk size expand)
     my $p = $create_part->($disk, $size);
+
+    # use created partition with LVM
     $m->{pv} = $p;
 
     $m->{vg} = $vg if defined $vg;
     $m->{lv} = $lv if defined $lv;
-    my $lv_group = $lv_exist->($m->{lv},'lv'); 
+    
+    # if defined $lv_group has it's vg
     #say "\$lv_group: $lv_group"; die;
 
-    #if( defined $lv_group and ($m->{vg} ne $lv_group) ){ die "$lv belongs to $lv_group" }
+    # we're creating new /dir,vg,lv; if provided lv already exist and belongs to different vg as provided by user, die  
+    if( defined $vg ){
+        my $lv_group = $lv_exist->($m->{lv},'lv'); 
+        if( defined $lv_group and ($m->{vg} ne $lv_group) ){ die "$lv belongs to $lv_group" }
+    }
 
+    # create or expand 
     my $l = $lvm->($m);
     say "[$l]";
 }
 
 
+die unless $ARGV[0]; # dies unless /dir 
 expand(@ARGV);
 
 =head1 NAME

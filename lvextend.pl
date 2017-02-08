@@ -205,8 +205,8 @@ my $choose_disk = sub {
     my $disks = $get_disk->( $_[0],$_[1] );
     unless( @$disks ){
         # todo: check if for loop works on virtual box too
-        my $scan = system(qq|for i in `ls -tr  /sys/class/scsi_host/`;do echo "- - -" > /sys/class/scsi_host/\$i/scan;done|);
-        say "\$scan:".$scan;
+        system(qq|for i in `ls -tr  /sys/class/scsi_host/`;do echo "- - -" > /sys/class/scsi_host/\$i/scan;done|);
+        say "scannin for new disks...";
         $disks = $get_disk->( $_[0],$_[1] );
         return unless defined $disks->[0];
     }
@@ -223,14 +223,8 @@ sub expand {
     #die "$dir doesnt exist" unless -d $dir;
 
     my $m = $map_dir->($dir);
-    my $d = $choose_disk->( $size ) unless defined $disk;
-    say "[$d]";
-    die;
-    #system(qq{for i in `ls -tr  /sys/class/scsi_host/`;do echo "- - -" > /sys/class/scsi_host/\$i/scan;done});
-    #$disk = $m->{disk}->[2] unless defined $disk;
-    #choose_disk('sdf');
-=head1
-
+    $disk = $choose_disk->( $size ) unless defined $disk;
+    say "creating partition on [$disk]";
     my $p = $create_part->($disk, $size);
     $m->{pv} = $p;
 
@@ -239,8 +233,9 @@ sub expand {
     $m->{lv} = $lv if defined $lv;
     my $lv_vgroup = $lv_exist->($m->{lv},'lv'); 
     die "$lv belongs to $lv_vgroup" unless $m->{vg} eq $lv_vgroup;
-
     my $l = $lvm->($m);
+    say "[$l]";
+=head1
 =cut
 }
 

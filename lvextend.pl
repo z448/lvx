@@ -8,8 +8,6 @@ use Data::Dumper;
 use File::Path qw( mkpath );
 use Getopt::Std;
 
-use Test::Simple tests => 3;
-
 my $opt = {};
 getopts('n:e:', $opt);
 
@@ -38,10 +36,11 @@ my $get_part = sub {
 my $map_dir = sub {
     my $dir = shift;
     my( %m, @m )= ();
-
+ 
     open my $pipe,"-|","df -h $dir";
     while(<$pipe>){
         next if $_ =~ /Filesystem/;
+        die "$dir Invald path for Logical Volume" unless $_ =~ m[^/dev/mapper];
         ( $m{fs}, $m{dir} ) = m[(^/.*?) .*($dir)$]g;
         ( $m{vg}, $m{lv} ) = split(" ", `lvs $m{fs} --noheadings -o vg_name,lv_name`);
     }
@@ -213,15 +212,16 @@ my $choose_disk = sub {
     return $disk;
 };
 
-# 
+
 sub expand {
     my ($dir, $size, $vg, $lv ) = @_;
 
+    if( $size ){ die "wrong size input:" unless $size =~ /\+([0-9]+)(k|M|G|T|P)/ }
     # need to initialize empty hashref in case we're creating /dir,vg,lv because $map_dir->() wont run
     my $m = {};
 
     # extending /dir space; dies if provided dir doesnt exist because  $map has no dir to map
-    die "$dir doesnt exist"  unless -d $dir;
+    die "$dir doesnt exist" unless -d $dir;
     $m = $map_dir->($dir) unless defined $vg; # dont map because we're creating new /dir,vg,lv 
 
     # creating/mounting new /dir on existing/new vg,lv; dont die, create new /dir because we're not expanding
@@ -252,7 +252,8 @@ sub expand {
     my $l = $lvm->($m);
 
     #mount if creating /dir,vg,lv
-    system("mount /dev/$m->{vg}/$m->{lv} $m->{dir}") if defined $vg;
+    system("mount /dev/$m->{vg}/$m->{lv} $m->{dir}");
+    #system("mount /dev/$m->{vg}/$m->{lv} $m->{dir}") if defined $vg;
    
 }
 

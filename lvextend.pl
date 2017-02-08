@@ -9,7 +9,7 @@ use File::Path qw( mkpath );
 use Getopt::Std;
 
 my $opt = {};
-getopts('n:e:', $opt);
+getopts('h', $opt);
 
 
 # take $disk name ('sda'); return  hashref of exsisting (not only LVM) partitions..
@@ -200,7 +200,7 @@ my $choose_disk = sub {
     my $disks = $get_disk->( $_[0],$_[1] );
     unless( @$disks ){
         system(qq|for i in `ls -tr  /sys/class/scsi_host/`;do echo "- - -" > /sys/class/scsi_host/\$i/scan;done|);
-        say "scannin for new disks...";
+        say "scanning for new disks...";
         $disks = $get_disk->( $_[0],$_[1] );
         return unless defined $disks->[0];
     }
@@ -213,24 +213,36 @@ my $choose_disk = sub {
     return $disk;
 };
 
+=head1
+sub opt_check {
+    my ($dir, $size, $vg, $lv ) = @_;
+
+    my %o = (
+        dir => sub{ my $dir = shift; 
+        size => $size,
+        vg => $vg,
+        lv => $lv,
+    );
+
+}
+=cut
 
 sub expand {
     my ($dir, $size, $vg, $lv ) = @_;
 
-    if( $size ){ die "wrong size input:" unless $size =~ /\+([0-9]+)(k|M|G|T|P)/ }
     # need to initialize empty hashref in case we're creating /dir,vg,lv because $map_dir->() wont run
     my $m = {};
 
     # extending /dir space; dies if provided dir doesnt exist because  $map has no dir to map
     die "$dir doesnt exist" unless -d $dir;
-    $m = $map_dir->($dir) unless defined $vg; # dont map because we're creating new /dir,vg,lv 
+    $m = $map_dir->($dir) unless $vg; # dont map because we're creating new /dir,vg,lv 
 
     # creating/mounting new /dir on existing/new vg,lv; dont die, create new /dir because we're not expanding
     mkpath $dir unless -d $dir;
 
     # find disks, if there is some with enough free space
     my $disk = $choose_disk->( $size );
-    die "there is no disk to expand $dir $size" unless $disk;
+    die "there is no disk to expand $dir by $size" unless $disk;
 
     # create partition on disk with optional size (if no size provided, full disk size expand)
     my $p = $create_part->($disk, $size);
@@ -241,33 +253,29 @@ sub expand {
     $m->{vg} = $vg if defined $vg;
     $m->{lv} = $lv if defined $lv;
     
-    # we're creating new /dir,vg,lv; if provided lv already exist and belongs to different vg as provided by user, die  
-    if( defined $lv ){
-        #die "need lv" unless defined $lv; #?offer lv's that are in vg
+    # we're creating new /dir,vg,lv; die if provided lv already exist and belongs to different vg as provided by user
+    if($vg){ die "wrong input: need lv" unless $lv }
+    if( $lv ){
         my $lv_group = $lv_exist->($m->{lv},'lv'); 
-        #todo 246 doesnt work
-        if( $lv_group and  $m->{vg} ne $lv_group ){ die "$lv belongs to $lv_group" }
+        if( $lv_group and ($m->{vg} ne $lv_group) ){ die "$lv belongs to $lv_group" }
     }
 
     # create or expand 
     my $l = $lvm->($m);
 
     #mount if creating /dir,vg,lv
-    system("mount /dev/$m->{vg}/$m->{lv} $m->{dir}");
-    #system("mount /dev/$m->{vg}/$m->{lv} $m->{dir}") if defined $vg;
+    system("mount /dev/$m->{vg}/$m->{lv} $m->{dir}") if defined $vg;
    
 }
 
-
 die unless $ARGV[0]; # dies unless /dir 
+if( $ARGV[1] ){ die "wrong input:" unless $ARGV[1] =~ /\+([0-9]+)(k|M|G|T|P)/ }
+
 expand(@ARGV);
+
 
 =head1 NAME
 
-lvx - extend mountpoin on LVM partition
-
-=head1 USAGE
-
-
+lvx - extend size of LVM filesystem 
 
 =cut

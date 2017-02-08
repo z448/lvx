@@ -40,7 +40,8 @@ my $map_dir = sub {
     open my $pipe,"-|","df -h $dir";
     while(<$pipe>){
         next if $_ =~ /Filesystem/;
-        die "$dir: Invalid path for Logical Volume" unless $_ =~ m[^/dev/mapper];
+        return unless $_ =~ m[^/dev/mapper];
+        #die "$dir: Invalid path for Logical Volume" unless $_ =~ m[^/dev/mapper];
         ( $m{fs}, $m{dir} ) = m[(^/.*?) .*($dir)$]g;
         ( $m{vg}, $m{lv} ) = split(" ", `lvs $m{fs} --noheadings -o vg_name,lv_name`);
 
@@ -234,11 +235,10 @@ sub expand {
     my $m = {};
 
     # extending /dir space; dies if provided dir doesnt exist because  $map has no dir to map
-    die "$dir doesnt exist" unless -d $dir;
-    $m = $map_dir->($dir) unless $vg; # dont map because we're creating new /dir,vg,lv 
+    if( $vg ){ mkpath $dir } else { die "$dir doesnt exist" unless -d $dir }
+    $m = $map_dir->($dir); # dont map because we're creating new /dir,vg,lv 
+    die unless $m; # todo 240: if $vg /dir cant be mounted on non-LVM fs
 
-    # creating/mounting new /dir on existing/new vg,lv; dont die, create new /dir because we're not expanding
-    mkpath $dir unless -d $dir;
 
     # find disks, if there is some with enough free space
     my $disk = $choose_disk->( $size );

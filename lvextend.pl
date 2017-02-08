@@ -176,8 +176,10 @@ my $choose_disk = sub {
 
         open my $p,'-|',"lsblk -lbd  --noheadings -o NAME,SIZE,TYPE";
         while(<$p>){ 
-            my($disk, $size, $type) = split(" ",$_ ) if $_ =~ /disk/;
-            $size{$disk} = $size;
+            if( /disk/ ){
+                my($disk, $size, $type) = split(" ",$_ ) ;
+                $size{$disk} = $size;
+            }
         }
         close $p;
         #for my $disk( keys %size ){ say ">>>$disk $size{$disk}" }; die;
@@ -187,9 +189,9 @@ my $choose_disk = sub {
             # todo: get all disks compute size for all disks
             #open my $p,'-|',"lsblk -lb --noheadings -o NAME,SIZE";
             my @size = ();
-            open $p,'-|',"lsblk -lbd /dev/$disk --noheadings -o NAME,SIZE";
+            open $p,'-|',"lsblk -lb /dev/$disk --noheadings -o NAME,SIZE";
             while(<$p>){
-                if( /$disk.*\ ([0-9]+)$/ ){ push @size, $1 }
+                if( /$disk[0-9]+\ +([0-9]+)$/ ){ push @size, $1 }
                 #if( /^$disk.*\ ([0-9]+)$/ ){ push @size, $1 if =~ /$disk/ }
             }
             for( @size ){ $size{$disk} -= $_ }

@@ -167,29 +167,36 @@ my $choose_disk = sub {
     my %unit = ( k => 1, M => 2, G => 3, T => 4, P => 5 );
     
     my $get_disk = sub {
-        my( $disks,$req_size ) = @_;
+        my( $req_size ) = @_;
 
         my( %size, @req_disk ) = ();
     
         $req_size =~ s/\+?([0-9]+)(k|M|G|T|P)/$1$2/;
         $req_size = $1 * ( 1024 ** $unit{$2} );
 
-        for my $disk( @$disks ){
-            open my $p,'-|',"lsblk -lbd  --noheadings -o NAME,SIZE";  
+        open my $p,'-|',"lsblk -lbd  --noheadings -o NAME,SIZE,TYPE";
+        while(<$p>){ 
+            my($disk, $size, $type) = split(" ",$_ ) if $_ =~ /disk/;
+            $size{$disk} = $size;
+        }
+        close $p;
+        #for my $disk( keys %size ){ say ">>>$disk $size{$disk}" }; die;
+
+        for my $disk( keys %size ){
+            #open my $p,'-|',"lsblk -lbd  --noheadings -o NAME,SIZE";  
             # todo: get all disks compute size for all disks
-            open my $p,'-|',"lsblk -lb --noheadings -o NAME,SIZE";
-            #open my $p,'-|',"lsblk -lbd /dev/$disk --noheadings -o NAME,SIZE";
-
+            #open my $p,'-|',"lsblk -lb --noheadings -o NAME,SIZE";
             my @size = ();
+            open $p,'-|',"lsblk -lbd /dev/$disk --noheadings -o NAME,SIZE";
             while(<$p>){
-                if( /^$disk.*\ ([0-9]+)$/ ){ push @size, $1 }
+                if( /$disk.*\ ([0-9]+)$/ ){ push @size, $1 }
+                #if( /^$disk.*\ ([0-9]+)$/ ){ push @size, $1 if =~ /$disk/ }
             }
-            close $p;
-
-            $size{$disk} = shift @size;
             for( @size ){ $size{$disk} -= $_ }
             push @req_disk, $disk if $size{$disk} >= $req_size;
+            close $p;
         }
+            #$size{$disk} = shift @size;
         return \@req_disk;
     };
 
@@ -214,7 +221,7 @@ sub expand {
     #die "$dir doesnt exist" unless -d $dir;
 
     my $m = $map_dir->($dir);
-    my $d = $choose_disk->( $m->{disk}, $size ) unless defined $disk;
+    my $d = $choose_disk->( $size ) unless defined $disk;
     say "[$d]";
     die;
     #system(qq{for i in `ls -tr  /sys/class/scsi_host/`;do echo "- - -" > /sys/class/scsi_host/\$i/scan;done});

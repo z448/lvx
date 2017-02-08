@@ -158,7 +158,7 @@ my $lvm = sub {
         system($create->{vg}->());
         system($create->{lv}->());
         #todo 160: dont mount unless creating new
-        system("mount /dev/$m->{vg}/$m->{lv} $m->{dir}");
+        #system("mount /dev/$m->{vg}/$m->{lv} $m->{dir}");
 };
 
 # say Dumper $map_dir->('/B','+1G');die;
@@ -219,7 +219,7 @@ sub expand {
     # need to initialize empty hashref in case we're creating /dir,vg,lv because $map_dir->() wont run
     my $m = {};
 
-    # extending /dir space; dies if dir doesnt exist because  $map has no dir to map
+    # extending /dir space; dies if provided dir doesnt exist because  $map has no dir to map
     die "$dir doesnt exist"  unless -d $dir;
     $m = $map_dir->($dir) unless defined $vg; # dont map because we're creating new /dir,vg,lv 
 
@@ -239,18 +239,20 @@ sub expand {
     $m->{vg} = $vg if defined $vg;
     $m->{lv} = $lv if defined $lv;
     
-    # if defined $lv_group has it's vg
-    #say "\$lv_group: $lv_group"; die;
-
     # we're creating new /dir,vg,lv; if provided lv already exist and belongs to different vg as provided by user, die  
     if( defined $vg ){
+        die "need lv" unless defined $lv; # todo: offer lv's that are in vg
         my $lv_group = $lv_exist->($m->{lv},'lv'); 
+        #todo 246 doesnt work
         if( defined $lv_group and ($m->{vg} ne $lv_group) ){ die "$lv belongs to $lv_group" }
     }
 
     # create or expand 
     my $l = $lvm->($m);
-    say "[$l]";
+
+    #mount if creating /dir,vg,lv
+    system("mount /dev/$m->{vg}/$m->{lv} $m->{dir}") if defined $vg;
+   
 }
 
 

@@ -205,10 +205,11 @@ my $choose_disk = sub {
         return unless defined $disks->[0];
     }
 
+    return unless @$disks;
     return $disks->[0] if $#{$disks} == 0; #return $disk if there is only one disk 
     print "choose disk: " . join(' ', @$disks) . "\n";
     chomp(my $disk = <STDIN>);
-    ($disk) = grep{ $disk eq $_ } @$disks; 
+    die "wrong input: $disk" unless my $ok = grep{ $disk eq $_ } @$disks;
     return $disk;
 };
 
@@ -240,11 +241,11 @@ sub expand {
     $m->{lv} = $lv if defined $lv;
     
     # we're creating new /dir,vg,lv; if provided lv already exist and belongs to different vg as provided by user, die  
-    if( defined $vg ){
-        die "need lv" unless defined $lv; # todo: offer lv's that are in vg
+    if( defined $lv ){
+        #die "need lv" unless defined $lv; #?offer lv's that are in vg
         my $lv_group = $lv_exist->($m->{lv},'lv'); 
         #todo 246 doesnt work
-        if( defined $lv_group and ($m->{vg} ne $lv_group) ){ die "$lv belongs to $lv_group" }
+        if( $lv_group and  $m->{vg} ne $lv_group ){ die "$lv belongs to $lv_group" }
     }
 
     # create or expand 

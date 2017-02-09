@@ -135,7 +135,7 @@ my $lv_exist = sub {
 
 my $lvm = sub {
     my $m = shift;
-    mkpath($m->{dir}) unless -d $m->{dir};
+    #mkpath($m->{dir}) unless -d $m->{dir};
 
     my $create = {
         pv  =>  sub{
@@ -158,8 +158,6 @@ my $lvm = sub {
         system($create->{pv}->());
         system($create->{vg}->());
         system($create->{lv}->());
-        #todo 160: dont mount unless creating new
-        #system("mount /dev/$m->{vg}/$m->{lv} $m->{dir}");
 };
 
 # say Dumper $map_dir->('/B','+1G');die;
@@ -214,64 +212,50 @@ my $choose_disk = sub {
     return $disk;
 };
 
-=head1
-sub opt_check {
+sub new {
     my ($dir, $size, $vg, $lv ) = @_;
 
-    my %o = (
-        dir => sub{ my $dir = shift; 
-        size => $size,
-        vg => $vg,
-        lv => $lv,
-    );
-
-}
-=cut
-
-sub expand {
-    my ($dir, $size, $vg, $lv ) = @_;
-
-    # need to initialize empty hashref in case we're creating /dir,vg,lv because $map_dir->() wont run
     my $m = {};
-
-    # extending /dir space; dies if provided dir doesnt exist because  $map has no dir to map
-    if( $vg ){ mkpath $dir } else { die "$dir doesnt exist" unless -d $dir }
-    $m = $map_dir->($dir); # dont map because we're creating new /dir,vg,lv 
-    die unless $m; # todo 240: if $vg /dir cant be mounted on non-LVM fs
-
-
+    mkpath $dir unless -d $dir;
     # find disks, if there is some with enough free space
     my $disk = $choose_disk->( $size );
     die "there is no disk to expand $dir by $size" unless $disk;
-
     # create partition on disk with optional size (if no size provided, full disk size expand)
     my $p = $create_part->($disk, $size);
-
     # use created partition with LVM
     $m->{pv} = $p;
+    $m->{vg} = $vg;
+    $m->{lv} = $lv;
 
-    $m->{vg} = $vg if defined $vg;
-    $m->{lv} = $lv if defined $lv;
-    
     # we're creating new /dir,vg,lv; die if provided lv already exist and belongs to different vg as provided by user
-    if($vg){ die "wrong input: need lv" unless $lv }
-    if( $lv ){
-        my $lv_group = $lv_exist->($m->{lv},'lv'); 
-        if( $lv_group and ($m->{vg} ne $lv_group) ){ die "$lv belongs to $lv_group" }
-    }
-
+    die "wrong input: need vg and lv" unless $lv and $vg;
+    my $lv_group = $lv_exist->($m->{lv},'lv'); 
+    if( $lv_group ){ if ($m->{vg} ne $lv_group){ die "$lv belongs to $lv_group" }
     # create or expand 
     my $l = $lvm->($m);
+    # mount if creating /dir,vg,lv
+    ## todo 267 add mount to fstab otherwise mount below doesnt work
+    system("mount /dev/$m->{vg}/$m->{lv} $m->{dir}");
+}
 
-    #mount if creating /dir,vg,lv
-    system("mount /dev/$m->{vg}/$m->{lv} $m->{dir}") if defined $vg;
-   
+sub expand {
+    my ($dir, $size) = @_;
+
+    my $m = $map_dir->($dir);
+    my $disk = $choose_disk->( $size );
+    die "there is no disk to expand $dir by $size" unless $disk;
+
+    my $p = $create_part->($disk, $size);
+    $m->{pv} = $p;
+
+    my $l = $lvm->($m);
 }
 
 die unless $ARGV[0]; # dies unless /dir 
 if( $ARGV[1] ){ die "wrong input:" unless $ARGV[1] =~ /\+([0-9]+)(k|M|G|T|P)/ }
 
-expand(@ARGV);
+if( $ARGV[3] ){ new(@ARGV) } else { expand(@ARGV) }
+
 
 
 =head1 NAME
@@ -279,3 +263,11 @@ expand(@ARGV);
 lvx - extend size of LVM filesystem 
 
 =cut
+
+__DATA__
+# if removing pv from vg gives error:"Can't remove final physical volume" use bellow commands to remove vg,pv
+vgchange -an vg_a
+vgremove vg_a
+pvremove /dev/sdb5
+---
+

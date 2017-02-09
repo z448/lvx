@@ -118,17 +118,18 @@ my $create_part = sub {
     return $p->{path};
 };
 
-# take $name of vg,lv or pv and its $type; returns 0 if doesnt exist
+# take $name of vg,lv or pv and its $type; returns if doesnt exist
 # if type is lv and it exist, returns name of vg which it belongs to
 my $lv_exist = sub {
-    my( $name, $type ) = @_;
+    my( $name, $type) = @_;
     my $cmd = $type . 's';
     open my $p,'-|', "$cmd --noheadings";
 
-    my $exist = 0;
+    my $exist;
     while(<$p>){ chomp($exist = $_) if $_ =~ /$name/ }
     close $p;
-    if( $exist =~ /\s+(.*?)\s+(.*?)\s.*/ ){
+    if($exist){
+        $exist =~ s/\s+(.*?)\s+(.*?)\s.*/$1$2/;
         return $2 if $name eq $1;
     }
 };
@@ -148,21 +149,18 @@ my $lvm = sub {
                 },
         lv  =>  sub{
                     my $lve = $lv_exist->($m->{lv},'lv');
-                    if( defined $lve ){ 
-                        return "lvextend -l +100%FREE /dev/$m->{vg}/$m->{lv} && resize2fs /dev/$m->{vg}/$m->{lv}";
-                    } else {
+                    unless( defined $lve ){ 
                         return "lvcreate -n $m->{lv} -l 100%FREE $m->{vg} && mkfs.ext4 /dev/$m->{vg}/$m->{lv}";
+                    } else {
+                        return "lvextend -l +100%FREE /dev/$m->{vg}/$m->{lv} && resize2fs /dev/$m->{vg}/$m->{lv}" if $lve eq $m->{vg};
                     }
                 },
         };
         system($create->{pv}->());
         system($create->{vg}->());
         system($create->{lv}->());
-        system("mount /dev/$m->{vg}/$m->{lv} $m->{dir}");
 };
 
-# say Dumper $map_dir->('/B','+1G');die;
- 
 # take optional \@disks( disks on which /dir is already mounted by LVM ) that will be checked first and if they dont have required $size run refresh and find all disks on system with required minimum size
 my $choose_disk = sub {
     my %unit = ( k => 1, M => 2, G => 3, T => 4, P => 5 );
@@ -235,6 +233,7 @@ sub new {
     # create or expand 
     my $l = $lvm->($m);
     # mount if creating /dir,vg,lv
+    system("mount /dev/$m->{vg}/$m->{lv} $m->{dir}");
     ## todo 267 add mount to fstab otherwise mount below doesnt work
 }
 
@@ -251,11 +250,11 @@ sub expand {
     my $l = $lvm->($m);
 }
 
-die unless $ARGV[0]; # dies unless /dir 
+die unless $ARGV[1]; # dies unless /dir 
 if( $ARGV[1] ){ die "wrong input:" unless $ARGV[1] =~ /\+([0-9]+)(k|M|G|T|P)/ }
 
 if( $ARGV[2] ){
-    new(@ARGV);die;
+    new(@ARGV);
 } else { expand(@ARGV) }
 
 

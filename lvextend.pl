@@ -135,7 +135,7 @@ my $lv_exist = sub {
 
 my $lvm = sub {
     my $m = shift;
-    #mkpath($m->{dir}) unless -d $m->{dir};
+    mkpath($m->{dir}) unless -d $m->{dir};
 
     my $create = {
         pv  =>  sub{
@@ -158,6 +158,7 @@ my $lvm = sub {
         system($create->{pv}->());
         system($create->{vg}->());
         system($create->{lv}->());
+        system("mount /dev/$m->{vg}/$m->{lv} $m->{dir}");
 };
 
 # say Dumper $map_dir->('/B','+1G');die;
@@ -216,7 +217,6 @@ sub new {
     my ($dir, $size, $vg, $lv ) = @_;
 
     my $m = {};
-    mkpath $dir unless -d $dir;
     # find disks, if there is some with enough free space
     my $disk = $choose_disk->( $size );
     die "there is no disk to expand $dir by $size" unless $disk;
@@ -226,16 +226,16 @@ sub new {
     $m->{pv} = $p;
     $m->{vg} = $vg;
     $m->{lv} = $lv;
+    $m->{dir} = $dir;
 
     # we're creating new /dir,vg,lv; die if provided lv already exist and belongs to different vg as provided by user
-    die "wrong input: need vg and lv" unless $lv and $vg;
-    my $lv_group = $lv_exist->($m->{lv},'lv'); 
-    if( $lv_group ){ if ($m->{vg} ne $lv_group){ die "$lv belongs to $lv_group" }
+#    die "wrong input: need vg and lv" unless $lv and $vg; #todo offer lv if not provided
+    #my $lv_group = $lv_exist->($m->{lv},'lv'); 
+    #if( $lv_group ){ if ($m->{vg} ne $lv_group){ die "$lv belongs to $lv_group" }}
     # create or expand 
     my $l = $lvm->($m);
     # mount if creating /dir,vg,lv
     ## todo 267 add mount to fstab otherwise mount below doesnt work
-    system("mount /dev/$m->{vg}/$m->{lv} $m->{dir}");
 }
 
 sub expand {
@@ -254,7 +254,9 @@ sub expand {
 die unless $ARGV[0]; # dies unless /dir 
 if( $ARGV[1] ){ die "wrong input:" unless $ARGV[1] =~ /\+([0-9]+)(k|M|G|T|P)/ }
 
-if( $ARGV[3] ){ new(@ARGV) } else { expand(@ARGV) }
+if( $ARGV[2] ){
+    new(@ARGV);die;
+} else { expand(@ARGV) }
 
 
 

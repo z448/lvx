@@ -24,6 +24,7 @@ chomp $disk;
 system("vgremove vg_a");
 push my @pvs, `pvs --noheadings -o NAME`;
 for(@pvs){ chomp; system("pvremove $_") };
+    system("partprobe /dev/$disk");
 
 $fdisk->($disk);
 

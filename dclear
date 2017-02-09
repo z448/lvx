@@ -17,8 +17,13 @@ my $fdisk = sub {
     say `lsblk`;
 };
 
-my $disk = <>;
+#my $disk = <>;
+my $disk = 'sdb';
 chomp $disk;
+
+system("vgremove vg_a");
+push my @pvs, `pvs --noheadings -o NAME`;
+for(@pvs){ chomp; system("pvremove $_") };
 
 $fdisk->($disk);
 

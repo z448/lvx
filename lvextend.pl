@@ -40,8 +40,8 @@ my $map_dir = sub {
     open my $pipe,"-|","df -h $dir";
     while(<$pipe>){
         next if $_ =~ /Filesystem/;
+        # if /dir is not mounted on LVM fs return 0  
         return unless $_ =~ m[^/dev/mapper];
-        #die "$dir: Invalid path for Logical Volume" unless $_ =~ m[^/dev/mapper];
         ( $m{fs}, $m{dir} ) = m[(^/.*?) .*($dir)$]g;
         ( $m{vg}, $m{lv} ) = split(" ", `lvs $m{fs} --noheadings -o vg_name,lv_name`);
 

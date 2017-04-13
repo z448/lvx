@@ -91,11 +91,28 @@ my $create_part = sub {
         return $part;
     };
 
+
     my $seq = {
+        g   =>  ["n\n","\n","\n","$size\n","t\n","\n","30\n","w\n"],
         e   =>  ["n\n","e\n","\n","\n","\n","w\n"],
         l   =>  ["n\n","\n","\n","w\n"],
         p   =>  ["n\n","\n","\n","\n","\n","w\n"],
     };
+
+    # check if disklabeltype is gpt
+    my $gpt = sub {
+        my $disk = shift;
+        open my $pipe,'-|', "fdisk -l /dev/$disk";
+        while(<$pipe>){ 
+            return 1 if $_ =~ /Disklabel type: gpt/;
+        }
+    };
+
+    # dont create extented part if it's gpt
+    if( $gpt->($disk) ){
+        my $p = $create->($seq->{g});
+        return $p->{path};
+    }
 
     # create extended partition if doesnt exist
     $create->($seq->{e}) unless $part_extended eq "1";
@@ -249,6 +266,7 @@ sub expand {
 
     my $l = $lvm->($m);
 }
+    
 
 die unless $ARGV[1]; # dies unless /dir 
 if( $ARGV[1] ){ die "wrong input:" unless $ARGV[1] =~ /\+([0-9]+)(k|M|G|T|P)/ }

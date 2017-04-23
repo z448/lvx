@@ -1,2 +1,2 @@
-###NAME
+### NAME
 lvx - easily resize LVM filesystem
